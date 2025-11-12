@@ -44,8 +44,13 @@ const FIELD_LABELS = {
 
   // Rental Inputs
   propertyTaxRate: "Property Tax Rate (%)",
-  insuranceMonthly: "Insurance / Utilities (Monthly)",
+  insuranceMonthly: "Insurance (Monthly)",
   vacancyRate: "Vacancy Rate (%)",
+  maintenanceRate: "Maintenance Rate (% of Property Value)",
+  propertyManagementRate: "Property Management Rate (%)",
+  includePropertyManagement: "Include Property Management?",
+  hoaFees: "HOA Fees (Monthly)",
+  utilitiesCost: "Utilities Cost (Monthly)",
   rentEstimate: "Monthly Rent (Est.)",
 
   // Output References (auto-linked)

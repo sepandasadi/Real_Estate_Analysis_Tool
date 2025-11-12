@@ -30,17 +30,6 @@
 
   <h2>🏡 REI Assistant</h2>
 
-  <!-- Source -->
-  <div class="section">
-    <label>Data Source</label>
-    <select id="apiSource">
-      <option value="bridge">Bridge Dataset</option>
-      <option value="openai">OpenAI</option>
-      <option value="gemini">Gemini</option>
-    </select>
-    <small>Choose where to pull comps and market data from.</small>
-  </div>
-
   <!-- Property -->
   <div class="section">
     <label>Property Address</label>
@@ -141,7 +130,6 @@
       }
 
       const data = {
-        apiSource: document.getElementById("apiSource").value,
         address: document.getElementById("address").value.trim(),
         city: document.getElementById("city").value.trim(),
         state: document.getElementById("state").value.trim(),
