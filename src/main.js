@@ -13,11 +13,17 @@ function onOpen() {
     .addSeparator()
     .addItem("Format all tabs", "formatAllTabs")
     .addSeparator()
+    .addSubMenu(ui.createMenu("Amortization")
+      .addItem("First Year (12 months)", "generateFirstYearAmortization")
+      .addItem("Full Loan Term", "generateFullAmortizationSchedule"))
+    .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
+    .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
+    .addSeparator()
     .addItem("Protect (Warning-only)", "protectSheetsWarning")
     .addItem("Protect (Hard Lock)", "protectSheetsLock")
     .addItem("Unlock", "unprotectAll")
     .addSeparator()
-    .addItem("🧹 Clear Sheets", "clearSheets") // 👈 New menu item here
+    .addItem("🧹 Clear Sheets", "clearSheets")
     .addToUi();
 }
 
@@ -142,6 +148,15 @@ function runAnalysis(data) {
   // Step 5: Generate Flip Sensitivity Matrix
   generateFlipSensitivityFromInputs();
 
+  // Step 6: Generate Amortization Schedule (Phase 2 Enhancement)
+  generateFirstYearAmortization();
+
+  // Step 7: Generate Tax Benefits Analysis (Phase 2 Enhancement)
+  generateTaxBenefitsAnalysis();
+
+  // Step 8: Generate Advanced Metrics Analysis (Phase 2 Enhancement - Final)
+  generateAdvancedMetricsAnalysis();
+
   SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.");
 }
 
@@ -153,7 +168,10 @@ function clearSheets() {
   const tabsToClear = [
     "Flip Analysis",
     "Rental Analysis",
-    "Flip Sensitivity (ARV vs Rehab)"
+    "Flip Sensitivity (ARV vs Rehab)",
+    "Amortization Schedule",
+    "Tax Benefits",
+    "Advanced Metrics"
   ];
 
   tabsToClear.forEach(name => {

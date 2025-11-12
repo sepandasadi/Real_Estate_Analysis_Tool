@@ -203,11 +203,24 @@ function generateRentalAnalysis(comps) {
   const asIsMonthlyCashFlow = asIsAnnualCashFlow / 12;
   const cocReturn = asIsAnnualCashFlow / totalCashDeployed; // Will be formatted as % later
 
+  // DSCR (Debt Service Coverage Ratio) - Phase 2 Enhancement
+  const DSCR = NOI / annualDebtService;
+
+  // Return on Time Invested - Phase 2 Enhancement
+  const monthsToFlip = getField("monthsToFlip", 6);
+  const returnOnTime = (cocReturn * 100) / monthsToFlip; // ROI per month
+
   const asIsData = [
     ["Purchase Price", purchasePrice],
     ["Monthly Rent (Est.)", rentEstimate],
+    ["", ""], // Spacer
+    ["Net Operating Income (NOI)", NOI],
+    ["Annual Debt Service", annualDebtService],
+    ["", ""], // Spacer
     ["Cap Rate (%)", capRate],
     ["Cash-on-Cash Return (%)", cocReturn],
+    ["DSCR (Debt Service Coverage)", DSCR],
+    ["Return on Time (% per month)", returnOnTime / 100],
     ["HELOC Monthly Interest ($)", helocMonthlyInterest]
   ];
   sheet.getRange(row,1,asIsData.length,2).setValues(asIsData);
@@ -238,11 +251,24 @@ function generateRentalAnalysis(comps) {
   const newCashFlow = newNOI / 12 - newMonthlyPI - helocMonthlyInterest;
   const newCoC = (newCashFlow * 12) / totalCashDeployed; // Will be format in % later
 
+  // DSCR for BRRRR - Phase 2 Enhancement
+  const newAnnualDebtService = (newMonthlyPI + helocMonthlyInterest) * 12;
+  const newDSCR = newNOI / newAnnualDebtService;
+
+  // Return on Time Invested for BRRRR - Phase 2 Enhancement
+  const newReturnOnTime = (newCoC * 100) / monthsToFlip;
+
   const brrrrData = [
     ["After Repair Value (ARV)", ARV],
     ["Post-Flip Monthly Rent (Est.)", newRent],
+    ["", ""], // Spacer
+    ["Net Operating Income (NOI)", newNOI],
+    ["Annual Debt Service", newAnnualDebtService],
+    ["", ""], // Spacer
     ["Cap Rate (%)", newCapRate],
-    ["Cash-on-Cash Return (%)", newCoC]
+    ["Cash-on-Cash Return (%)", newCoC],
+    ["DSCR (Debt Service Coverage)", newDSCR],
+    ["Return on Time (% per month)", newReturnOnTime / 100]
   ];
   sheet.getRange(row,1,brrrrData.length,2).setValues(brrrrData);
   row += brrrrData.length + 2;
@@ -279,13 +305,22 @@ function generateRentalAnalysis(comps) {
   sheet.getRange(1,1,sheet.getMaxRows(),sheet.getMaxColumns()).
   setBorder(false,false,false,false,false,false);
 
-  ["B10","B14","B16", "B23"].forEach(r=>{try{sheet.getRange(r).
+  // Currency formatting for NOI and debt service
+  ["B7","B8","B10","B18","B19", "B27"].forEach(r=>{try{sheet.getRange(r).
   setNumberFormat(currencyNoDecimal);}catch(e){}});
 
-  ["B8","B9","B17","B18", "B20", "B24"].forEach(r=>{try{sheet.getRange(r).
+  // Percentage formatting for rates and returns
+  ["B10","B11","B12","B13","B21","B22","B23","B24", "B28", "B29"].forEach(r=>{try{sheet.getRange(r).
   setNumberFormat(percentNoDecimal);}catch(e){}});
 
-  ["A10","A14","B10","B14", "A23", "A24", "B23", "B24"].forEach(r=>sheet.getRange(r).
+  // DSCR formatting (2 decimal places)
+  ["B12","B23"].forEach(r=>{try{sheet.getRange(r).
+  setNumberFormat("0.00");}catch(e){}});
+
+  // Normal font weight for data cells
+  ["A7","A8","A10","A11","A12","A13","A14","B7","B8","B10","B11","B12","B13","B14",
+   "A18","A19","A21","A22","A23","A24","B18","B19","B21","B22","B23","B24",
+   "A27","A28","A29","B27","B28","B29"].forEach(r=>sheet.getRange(r).
   setFontWeight("normal"));
 
   sheet.autoResizeColumns(1,4);

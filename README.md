@@ -17,10 +17,17 @@ The REI Analysis Tool automates the complex calculations required for real estat
 ### Financial Analysis
 - ✅ Comprehensive flip analysis with profit projections
 - ✅ Rental cash flow analysis (As-Is and BRRRR scenarios)
-- ✅ Net Operating Income (NOI) calculations
+- ✅ Net Operating Income (NOI) prominently displayed
+- ✅ DSCR (Debt Service Coverage Ratio) for lending qualification
 - ✅ Cap rate and cash-on-cash return metrics
+- ✅ Return on Time Invested (ROI per month)
 - ✅ Holding cost calculations (mortgage interest, HELOC interest)
 - ✅ Automatic HELOC/loan breakdown based on down payment
+- ✅ Amortization schedule (first year and full term)
+- ✅ Depreciation calculations (27.5 years residential)
+- ✅ Tax benefits analysis with deductions
+- ✅ Capital gains tax planning
+- ✅ 1031 exchange scenario evaluation
 
 ### Automation & Intelligence
 - ✅ Automated comparable property data fetching
@@ -42,11 +49,25 @@ The REI Analysis Tool automates the complex calculations required for real estat
 
 ## 📋 Current Status
 
-**Version:** Phase 1 Complete (87%)
+**Version:** Phase 2 Complete (100%)
 **Last Updated:** November 12, 2025
-**Total Tasks Completed:** 13 out of 15 Phase 1 tasks
+**Total Tasks Completed:** 28 out of 107 tasks (26% overall)
 
-### Recent Improvements
+### Recent Improvements (Phase 2) ✅ COMPLETED
+- ✅ Added DSCR (Debt Service Coverage Ratio) for lending qualification
+- ✅ Added Return on Time Invested (ROI per month)
+- ✅ Prominently display NOI (Net Operating Income)
+- ✅ Created comprehensive amortization schedule
+- ✅ Added depreciation calculations (27.5 years residential)
+- ✅ Tax benefits analysis with mortgage interest deduction
+- ✅ Capital gains tax planning with depreciation recapture
+- ✅ 1031 exchange scenario evaluation
+- ✅ Internal Rate of Return (IRR) with 10-year projections
+- ✅ Net Present Value (NPV) calculations
+- ✅ Break-even analysis (rent and occupancy)
+- ✅ Multiple loan scenario comparisons (30yr, 15yr, IO, ARM)
+
+### Phase 1 Improvements
 - ✅ Fixed sensitivity analysis integration
 - ✅ Corrected rental analysis calculations with proper NOI
 - ✅ Implemented dynamic field mapping system
@@ -54,7 +75,7 @@ The REI Analysis Tool automates the complex calculations required for real estat
 - ✅ Enhanced API error handling with retry logic
 - ✅ Industry-standard calculations (1% maintenance, 8% property management)
 
-See [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md) for detailed implementation notes.
+See [PHASE_2_SUMMARY.md](PHASE_2_SUMMARY.md) and [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md) for detailed implementation notes.
 
 ## 🚀 Getting Started
 
@@ -210,6 +231,7 @@ Cash-on-Cash Return = Annual Cash Flow / Total Cash Deployed
 
 - **[IMPROVEMENT_ROADMAP.md](IMPROVEMENT_ROADMAP.md)** - Complete enhancement plan (107 tasks across 8 phases)
 - **[PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md)** - Detailed Phase 1 implementation notes
+- **[PHASE_2_SUMMARY.md](PHASE_2_SUMMARY.md)** - Detailed Phase 2 implementation notes
 - **[DYNAMIC_FIELDS_GUIDE.md](DYNAMIC_FIELDS_GUIDE.md)** - Dynamic field mapping system guide
 
 ## 🛠️ Development
@@ -225,10 +247,14 @@ Real_Estate_Analysis_Tool/
 │   ├── config.js              # Field mapping configuration
 │   ├── formatter.js           # Sheet formatting utilities
 │   ├── protection.js          # Sheet protection utilities
+│   ├── amortization.js        # Amortization schedule (Phase 2)
+│   ├── taxBenefits.js         # Tax benefits & depreciation (Phase 2)
+│   ├── advancedMetrics.js     # IRR, NPV, break-even, loan scenarios (Phase 2)
 │   └── Sidebar.html           # User interface
 ├── README.md                  # This file
 ├── IMPROVEMENT_ROADMAP.md     # Enhancement roadmap
 ├── PHASE_1_SUMMARY.md         # Phase 1 implementation notes
+├── PHASE_2_SUMMARY.md         # Phase 2 implementation notes
 └── DYNAMIC_FIELDS_GUIDE.md    # Field mapping guide
 ```
 
@@ -275,12 +301,18 @@ function testFieldOperations() {
 
 ## 🗺️ Roadmap
 
-### Phase 2: Enhanced Calculations & Metrics (Planned)
-- [ ] Debt Service Coverage Ratio (DSCR)
-- [ ] Internal Rate of Return (IRR)
-- [ ] Net Present Value (NPV)
-- [ ] Amortization table
-- [ ] Tax and depreciation calculations
+### Phase 2: Enhanced Calculations & Metrics ✅ COMPLETED
+- [x] Debt Service Coverage Ratio (DSCR)
+- [x] Return on Time Invested (ROI per month)
+- [x] Net Operating Income (NOI) prominently displayed
+- [x] Amortization table (first year and full term)
+- [x] Tax and depreciation calculations
+- [x] Capital gains tax planning
+- [x] 1031 exchange scenarios
+- [x] Internal Rate of Return (IRR)
+- [x] Net Present Value (NPV)
+- [x] Break-even analysis
+- [x] Multiple loan scenario comparisons (30yr, 15yr, IO, ARM)
 
 ### Phase 3: Automation & Smart Features (Planned)
 - [ ] Auto-populate tax rates by location
@@ -362,8 +394,8 @@ This project is for personal use. Please respect API provider terms of service w
 
 ---
 
-**Version:** 1.0 (Phase 1 Complete)
+**Version:** 2.0 (Phase 2: 100% Complete)
 **Last Updated:** November 12, 2025
 **Status:** Production Ready ✅
 
-For detailed implementation notes, see [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md)
+For detailed implementation notes, see [PHASE_2_SUMMARY.md](PHASE_2_SUMMARY.md) and [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md)
