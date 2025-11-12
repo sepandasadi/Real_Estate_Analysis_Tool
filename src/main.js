@@ -10,18 +10,26 @@ function onOpen() {
     .addItem("Open Sidebar", "openSidebar")
     .addSeparator()
     .addItem("Run Full Analysis", "menuRunAnalysis")
+    .addItem("🔄 Refresh Comps (Force)", "refreshComps")
     .addSeparator()
     .addItem("Format all tabs", "formatAllTabs")
     .addSeparator()
     .addSubMenu(ui.createMenu("Amortization")
       .addItem("First Year (12 months)", "generateFirstYearAmortization")
       .addItem("Full Loan Term", "generateFullAmortizationSchedule"))
-    .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
-    .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
     .addSeparator()
-    .addItem("Protect (Warning-only)", "protectSheetsWarning")
-    .addItem("Protect (Hard Lock)", "protectSheetsLock")
-    .addItem("Unlock", "unprotectAll")
+    .addSubMenu(ui.createMenu("Advanced Tools")
+      .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
+      .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
+      .addItem("Flip Enhancements (Timeline, Partners, Renovation)", "generateFlipEnhancements")
+      .addItem("🏠 Auto-Populate Expenses (Tax & Insurance)", "autoPopulateExpenses")
+      .addItem("📊 Compare State Expenses", "compareStateExpenses")
+      .addItem("🔍 Filter Comps (Date, Distance, Type)", "createFilteredCompsView"))
+    .addSeparator()
+    .addSubMenu(ui.createMenu("Protect/Unlock")
+      .addItem("Protect (Warning-only)", "protectSheetsWarning")
+      .addItem("Protect (Hard Lock)", "protectSheetsLock")
+      .addItem("Unlock", "unprotectAll"))
     .addSeparator()
     .addItem("🧹 Clear Sheets", "clearSheets")
     .addToUi();
@@ -58,14 +66,7 @@ function runAnalysis(data) {
 
   // ✅ Write all fields using dynamic field mapping
   try {
-    // Normalize API source to match validation list
-    let apiValue = data.apiSource;
-    if (apiValue.toLowerCase() === "bridge") apiValue = "Bridge Dataset";
-    if (apiValue.toLowerCase() === "openai") apiValue = "OpenAI";
-    if (apiValue.toLowerCase() === "gemini") apiValue = "Gemini";
-
     // Property Info
-    setField("apiSource", apiValue);
     setField("address", data.address || "");
     setField("city", data.city || "");
     setField("state", data.state || "");
@@ -93,11 +94,13 @@ function runAnalysis(data) {
     const insuranceMonthly = 100; // $
     const vacancyRate = 6; // %
     const estRent = 3500; // $
+    const utilitiesCost = 150; // $ per month
 
     setField("propertyTaxRate", propertyTaxRate / 100, "0.00%");
     setField("insuranceMonthly", insuranceMonthly, '"$"#,##0');
     setField("vacancyRate", vacancyRate / 100, "0.00%");
     setField("rentEstimate", estRent, '"$"#,##0');
+    setField("utilitiesCost", utilitiesCost, '"$"#,##0');
 
     // Output References (auto-linked after analysis)
     // Note: These still use cell references for formulas, but we get the refs dynamically
@@ -106,24 +109,26 @@ function runAnalysis(data) {
     const capRateRef = getFieldRef("capRate");
     const cocReturnRef = getFieldRef("cocReturn");
 
+    // Note: These formulas will be set after analysis runs
+    // We'll use INDIRECT to find the values by label
     if (baseARVRef) {
       const r = inputs.getRange(baseARVRef);
-      r.setFormula("='Flip Analysis'!B28");
+      r.setFormula('=IFERROR(INDEX(\'Flip Analysis\'!B:B,MATCH("After Repair Value (ARV)",\'Flip Analysis\'!A:A,0)),0)');
       r.setNumberFormat('"$"#,##0');
     }
     if (netProfitRef) {
       const r = inputs.getRange(netProfitRef);
-      r.setFormula("='Flip Analysis'!B30");
+      r.setFormula('=IFERROR(INDEX(\'Flip Analysis\'!B:B,MATCH("Net Profit ($)",\'Flip Analysis\'!A:A,0)),0)');
       r.setNumberFormat('"$"#,##0');
     }
     if (capRateRef) {
       const r = inputs.getRange(capRateRef);
-      r.setFormula("='Rental Analysis'!B17");
+      r.setFormula('=IFERROR(INDEX(\'Rental Analysis\'!B:B,MATCH("Cap Rate (%)",\'Rental Analysis\'!A:A,0)),0)');
       r.setNumberFormat("0%");
     }
     if (cocReturnRef) {
       const r = inputs.getRange(cocReturnRef);
-      r.setFormula("='Rental Analysis'!B18");
+      r.setFormula('=IFERROR(INDEX(\'Rental Analysis\'!B:B,MATCH("Cash-on-Cash Return (%)",\'Rental Analysis\'!A:A,0)),0)');
       r.setNumberFormat("0%");
     }
 
@@ -154,10 +159,57 @@ function runAnalysis(data) {
   // Step 7: Generate Tax Benefits Analysis (Phase 2 Enhancement)
   generateTaxBenefitsAnalysis();
 
-  // Step 8: Generate Advanced Metrics Analysis (Phase 2 Enhancement - Final)
+  // Step 8: Generate Advanced Metrics Analysis (Phase 2 Enhancement)
   generateAdvancedMetricsAnalysis();
 
-  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.");
+  // Step 9: Generate Flip Enhancements (Phase 3 Enhancement)
+  generateFlipEnhancements();
+
+  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.\n\nIncludes: Flip & Rental Analysis, Sensitivity, Amortization, Tax Benefits, Advanced Metrics, and Flip Enhancements.");
+}
+
+/**
+ * Phase 3: Refresh Comps - Force fetch new comps data bypassing cache
+ */
+function refreshComps() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inputs = ss.getSheetByName("Inputs");
+
+  if (!inputs) {
+    SpreadsheetApp.getUi().alert("❌ Inputs sheet not found");
+    return;
+  }
+
+  // Get property data from Inputs sheet
+  const data = {
+    address: getField("address", ""),
+    city: getField("city", ""),
+    state: getField("state", ""),
+    zip: getField("zip", "")
+  };
+
+  // Validate required fields
+  if (!data.address || !data.city || !data.state || !data.zip) {
+    SpreadsheetApp.getUi().alert("⚠️ Please fill in property address, city, state, and zip in the Inputs tab first.");
+    return;
+  }
+
+  // Clear cache for this property
+  clearCachedComps(data.address, data.city, data.state, data.zip);
+
+  // Fetch fresh comps (forceRefresh = true)
+  const comps = fetchCompsData(data, true);
+
+  if (!comps || comps.length === 0) {
+    SpreadsheetApp.getUi().alert("⚠️ No comps data returned. Please check your API configuration.");
+    return;
+  }
+
+  // Regenerate analysis with fresh comps
+  generateFlipAnalysis(comps);
+  generateRentalAnalysis(comps);
+
+  SpreadsheetApp.getUi().alert(`✅ Comps refreshed! Found ${comps.length} comparable properties.\n\nFlip and Rental analysis updated.`);
 }
 
 /**
@@ -171,7 +223,10 @@ function clearSheets() {
     "Flip Sensitivity (ARV vs Rehab)",
     "Amortization Schedule",
     "Tax Benefits",
-    "Advanced Metrics"
+    "Advanced Metrics",
+    "Flip Timeline",
+    "Partner Profit Split",
+    "Renovation Timeline"
   ];
 
   tabsToClear.forEach(name => {
