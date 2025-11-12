@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    :root {
+      --accent:#1a73e8;--accent-dark:#155ab6;--bg:#f7f9fc;--card-bg:#fff;--border:#e0e0e0;
+      --radius:10px;--shadow:0 2px 6px rgba(0,0,0,0.08);
+    }
+    body{font-family:"Inter","Segoe UI",Arial,sans-serif;background:var(--bg);padding:14px;margin:0;color:#333}
+    h2{margin-top:0;color:var(--accent-dark);font-weight:600;letter-spacing:.3px}
+    .section{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+    label{display:block;font-size:13px;font-weight:600;margin-top:8px;margin-bottom:4px}
+    input,select{width:100%;padding:7px 9px;border:1px solid #ccc;border-radius:6px;font-size:13px;
+      box-sizing:border-box;transition:border .2s}
+    input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(26,115,232,.15)}
+    button{width:100%;padding:10px 12px;font-size:14px;background:var(--accent);color:white;
+      border:none;border-radius:8px;cursor:pointer;font-weight:600;transition:background .25s ease}
+    button:hover{background:var(--accent-dark)}
+    .input-group{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    small{color:#777;font-size:11px}
+    hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+    #overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.85);
+      display:none;align-items:center;justify-content:center;z-index:9999;font-size:16px;color:#333}
+  </style>
+</head>
+<body>
+  <div id="overlay">⏳ Running Analysis… Please wait</div>
+
+  <h2>🏡 REI Assistant</h2>
+
+  <!-- Source -->
+  <div class="section">
+    <label>Data Source</label>
+    <select id="apiSource">
+      <option value="bridge">Bridge Dataset</option>
+      <option value="openai">OpenAI</option>
+      <option value="gemini">Gemini</option>
+    </select>
+    <small>Choose where to pull comps and market data from.</small>
+  </div>
+
+  <!-- Property -->
+  <div class="section">
+    <label>Property Address</label>
+    <input style="margin:3px" id="address" placeholder="Street address" />
+    <div style="margin:3px 0px 3px 3px" class="input-group">
+      <input id="city" placeholder="City" />
+      <input id="state" placeholder="State" />
+    </div>
+    <input style="margin:3px" id="zip" placeholder="ZIP Code" />
+  </div>
+
+  <!-- Financing -->
+  <div class="section">
+    <label>Purchase Price ($)</label>
+    <input id="purchasePrice" type="number" placeholder="e.g. 799000" />
+    <div class="input-group">
+      <div><label>Down Payment (%)</label><input id="downPayment" type="number" placeholder="20" /></div>
+      <div><label>Loan Interest Rate (%)</label><input id="loanInterestRate" type="number" placeholder="6.5" /></div>
+    </div>
+    <div class="input-group">
+      <div><label>Loan Term (Years)</label><input id="loanTerm" type="number" placeholder="30" /></div>
+      <div><label>Months to Flip</label><input id="monthsToFlip" type="number" placeholder="6" /></div>
+    </div>
+    <label>Rehab Cost ($)</label>
+    <input id="rehabCost" type="number" placeholder="75000" />
+    <div class="input-group">
+    <div>
+      <label>Cash Investment ($)</label>
+      <input id="cashInvestment" type="number" placeholder="e.g. 75000" />
+    </div>
+    <div>
+      <label>HELOC / Loan Interest (%)</label>
+      <input id="helocInterest" type="number" placeholder="e.g. 7.0" />
+    </div>
+  </div>
+
+  <!-- Main Action -->
+  <div class="section" style="text-align:center;">
+    <button onclick="runAnalysis()">🚀 Run Full Analysis</button>
+    <small>This will generate Flip & Rental analyses with comps and scenarios.</small>
+  </div>
+
+  <!-- Developer Tools -->
+  <div class="section">
+    <details>
+      <summary style="cursor:pointer;font-weight:600;">🧪 Developer Tools</summary>
+      <button style="margin-top:8px" onclick="testAPI('bridge')">Test Bridge API</button>
+      <button style="margin-top:8px" onclick="testAPI('openai')">Test OpenAI API</button>
+      <button style="margin-top:8px" onclick="testAPI('gemini')">Test Gemini API</button>
+    </details>
+  </div>
+
+  <script>
+    function showOverlay(show){document.getElementById("overlay").style.display=show?"flex":"none"}
+
+    function validateInputs() {
+      const errors = [];
+
+      // Required fields
+      const address = document.getElementById("address").value.trim();
+      const city = document.getElementById("city").value.trim();
+      const state = document.getElementById("state").value.trim();
+      const zip = document.getElementById("zip").value.trim();
+      const purchasePrice = +document.getElementById("purchasePrice").value;
+      const downPayment = +document.getElementById("downPayment").value;
+      const loanInterestRate = +document.getElementById("loanInterestRate").value;
+      const loanTerm = +document.getElementById("loanTerm").value;
+      const rehabCost = +document.getElementById("rehabCost").value;
+      const monthsToFlip = +document.getElementById("monthsToFlip").value;
+      const cashInvestment = +document.getElementById("cashInvestment").value;
+      const helocInterest = +document.getElementById("helocInterest").value;
+
+      // Validate required fields
+      if (!address) errors.push("• Property address is required");
+      if (!city) errors.push("• City is required");
+      if (!state) errors.push("• State is required");
+      if (!zip) errors.push("• ZIP code is required");
+
+      // Validate numeric fields
+      if (!purchasePrice || purchasePrice <= 0) errors.push("• Purchase price must be greater than 0");
+      if (!downPayment || downPayment < 0 || downPayment > 100) errors.push("• Down payment must be between 0 and 100%");
+      if (!loanInterestRate || loanInterestRate < 0 || loanInterestRate > 20) errors.push("• Loan interest rate must be between 0 and 20%");
+      if (!loanTerm || loanTerm <= 0 || loanTerm > 50) errors.push("• Loan term must be between 1 and 50 years");
+      if (rehabCost < 0) errors.push("• Rehab cost cannot be negative");
+      if (!monthsToFlip || monthsToFlip <= 0 || monthsToFlip > 60) errors.push("• Months to flip must be between 1 and 60");
+      if (cashInvestment < 0) errors.push("• Cash investment cannot be negative");
+      if (helocInterest < 0 || helocInterest > 20) errors.push("• HELOC interest must be between 0 and 20%");
+
+      return errors;
+    }
+
+    function runAnalysis(){
+      // Validate inputs first
+      const errors = validateInputs();
+      if (errors.length > 0) {
+        alert("Please fix the following errors:\n\n" + errors.join("\n"));
+        return;
+      }
+
+      const data = {
+        apiSource: document.getElementById("apiSource").value,
+        address: document.getElementById("address").value.trim(),
+        city: document.getElementById("city").value.trim(),
+        state: document.getElementById("state").value.trim(),
+        zip: document.getElementById("zip").value.trim(),
+        purchasePrice: +document.getElementById("purchasePrice").value,
+        downPayment: +document.getElementById("downPayment").value,
+        cashInvestment: +document.getElementById("cashInvestment").value,
+        helocInterest: +document.getElementById("helocInterest").value,
+        loanInterestRate: +document.getElementById("loanInterestRate").value,
+        loanTerm: +document.getElementById("loanTerm").value,
+        rehabCost: +document.getElementById("rehabCost").value,
+        monthsToFlip: +document.getElementById("monthsToFlip").value
+      };
+
+      showOverlay(true);
+      google.script.run
+        .withSuccessHandler(()=>showOverlay(false))
+        .withFailureHandler((err)=>{showOverlay(false);alert("Error running analysis: " + err);})
+        .runAnalysis(data);
+    }
+
+    function testAPI(source){
+      showOverlay(true);
+      const fn={
+        bridge:"testBridgeAPI",
+        openai:"testOpenAI",
+        gemini:"testGemini"
+      }[source];
+      google.script.run
+        .withSuccessHandler(()=>{showOverlay(false);alert(source+" test complete — check logs");})
+        .withFailureHandler(()=>{showOverlay(false);alert("Error running "+source+" test");})
+        [fn]();
+    }
+  </script>
+</body>
+</html>
