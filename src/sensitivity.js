@@ -17,6 +17,12 @@ function generateFlipSensitivityFromInputs() {
   const loanTerm = getField("loanTerm", 30);
   const rehabCost = getField("rehabCost", 0);
   const monthsToFlip = getField("monthsToFlip", 6);
+  const helocAmount = getField("helocAmount", 0);
+  const helocInterest = getField("helocInterest", 0.07);
+  const propertyTaxRate = getField("propertyTaxRate", 0.0125);
+  const insuranceMonthly = getField("insuranceMonthly", 100);
+  const utilitiesCost = getField("utilitiesCost", 0);
+
   const contingency = rehabCost * 0.1;
   const totalRehab = rehabCost + contingency;
 
@@ -25,10 +31,26 @@ function generateFlipSensitivityFromInputs() {
   const loanAmount = purchasePrice - downPayment;
   const monthlyRate = interestRate / 12;
   const monthlyPI = (loanAmount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -loanTerm * 12));
-  const holdingCost = monthlyPI * monthsToFlip;
 
-  // Get ARV from Flip Analysis sheet (or calculate default)
-  const arv = flipSheet.getRange("B28").getValue() || purchasePrice * 1.1;
+  // Calculate full holding costs (mortgage + HELOC + taxes + insurance + utilities)
+  const monthlyPropertyTax = (purchasePrice * propertyTaxRate) / 12;
+  const monthlyHoldingCosts = monthlyPI + (helocAmount * helocInterest / 12) + monthlyPropertyTax + insuranceMonthly + utilitiesCost;
+  const holdingCost = monthlyHoldingCosts * monthsToFlip;
+
+  // Try to get ARV from Flip Analysis sheet by searching for the label
+  let arv = purchasePrice * 1.1; // Default fallback
+  try {
+    const data = flipSheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][0] && data[i][0].toString().includes("After Repair Value (ARV)")) {
+        arv = parseFloat(data[i][1]) || purchasePrice * 1.1;
+        Logger.log(`✅ Found ARV in Flip Analysis: ${arv}`);
+        break;
+      }
+    }
+  } catch (e) {
+    Logger.log("⚠️ Could not read ARV from Flip Analysis, using default: " + e);
+  }
 
   // Calculate costs
   const closingCosts = purchasePrice * 0.02;

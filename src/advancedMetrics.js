@@ -15,9 +15,28 @@
  * Calculate Internal Rate of Return (IRR) using Newton-Raphson method
  * @param {Array} cashFlows - Array of cash flows [initial investment (negative), year1, year2, ...]
  * @param {number} guess - Initial guess for IRR (default 0.1 = 10%)
- * @returns {number} IRR as decimal (e.g., 0.15 = 15%)
+ * @returns {number} IRR as decimal (e.g., 0.15 = 15%) or null if invalid
  */
 function calculateIRR(cashFlows, guess = 0.1) {
+  // Validate cash flows
+  if (!cashFlows || cashFlows.length < 2) {
+    Logger.log("⚠️ IRR calculation requires at least 2 cash flows");
+    return null;
+  }
+
+  // Check for sign changes (required for valid IRR)
+  let hasPositive = false;
+  let hasNegative = false;
+  for (let i = 0; i < cashFlows.length; i++) {
+    if (cashFlows[i] > 0) hasPositive = true;
+    if (cashFlows[i] < 0) hasNegative = true;
+  }
+
+  if (!hasPositive || !hasNegative) {
+    Logger.log("⚠️ IRR calculation requires both positive and negative cash flows");
+    return null;
+  }
+
   const maxIterations = 100;
   const tolerance = 0.00001;
   let rate = guess;
@@ -31,16 +50,35 @@ function calculateIRR(cashFlows, guess = 0.1) {
       derivative -= j * cashFlows[j] / Math.pow(1 + rate, j + 1);
     }
 
+    // Check for invalid derivative
+    if (Math.abs(derivative) < 0.000001) {
+      Logger.log("⚠️ IRR calculation failed: derivative too small");
+      return null;
+    }
+
     const newRate = rate - npv / derivative;
 
+    // Check for convergence
     if (Math.abs(newRate - rate) < tolerance) {
+      // Validate result is reasonable (-100% to 1000%)
+      if (newRate < -1 || newRate > 10) {
+        Logger.log("⚠️ IRR calculation resulted in unreasonable value: " + newRate);
+        return null;
+      }
       return newRate;
+    }
+
+    // Check for divergence
+    if (Math.abs(newRate) > 100 || isNaN(newRate)) {
+      Logger.log("⚠️ IRR calculation diverged");
+      return null;
     }
 
     rate = newRate;
   }
 
-  return rate; // Return best estimate if not converged
+  Logger.log("⚠️ IRR calculation did not converge after " + maxIterations + " iterations");
+  return null; // Return null if not converged
 }
 
 /**

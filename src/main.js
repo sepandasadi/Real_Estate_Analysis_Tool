@@ -14,6 +14,8 @@ function onOpen() {
     .addItem("Run Full Analysis", "menuRunAnalysis")
     .addItem("🔄 Refresh Comps (Force)", "refreshComps")
     .addSeparator()
+    .addItem("🔄 Toggle Simple/Advanced Mode", "toggleAnalysisMode")
+    .addSeparator()
     .addItem("Format all tabs", "formatAllTabs")
     .addSeparator()
     .addSubMenu(ui.createMenu("Amortization")
@@ -26,6 +28,7 @@ function onOpen() {
       .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
       .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
       .addItem("Flip Enhancements (Timeline, Partners, Renovation)", "generateFlipEnhancements")
+      .addItem("🏗️ Project Tracker (Advanced Mode Only)", "generateProjectTracker")
       .addItem("🏠 Auto-Populate Expenses (Tax & Insurance)", "autoPopulateExpenses")
       .addItem("📊 Compare State Expenses", "compareStateExpenses")
       .addItem("🔍 Filter Comps (Date, Distance, Type)", "createFilteredCompsView"))
@@ -157,8 +160,14 @@ function runAnalysis(data) {
   // Step 4: Generate Scenarios automatically (embedded in analysis tabs)
   // Note: generateScenarios() is called within generateFlipAnalysis and generateRentalAnalysis
 
-  // Step 5: Generate Flip Sensitivity Matrix
-  generateFlipSensitivityFromInputs();
+  // Check current mode
+  const currentMode = getCurrentMode();
+  const isSimple = currentMode === 'Simple';
+
+  // Step 5: Generate Flip Sensitivity Matrix (only in Advanced Mode)
+  if (!isSimple) {
+    generateFlipSensitivityFromInputs();
+  }
 
   // Step 6: Generate Amortization Schedule (Phase 2 Enhancement)
   generateFirstYearAmortization();
@@ -166,14 +175,19 @@ function runAnalysis(data) {
   // Step 7: Generate Tax Benefits Analysis (Phase 2 Enhancement)
   generateTaxBenefitsAnalysis();
 
-  // Step 8: Generate Advanced Metrics Analysis (Phase 2 Enhancement)
-  generateAdvancedMetricsAnalysis();
+  // Step 8: Generate Advanced Metrics Analysis (only in Advanced Mode)
+  if (!isSimple) {
+    generateAdvancedMetricsAnalysis();
+  }
 
   // Step 9: Generate Flip Enhancements (Phase 3 Enhancement)
   generateFlipEnhancements();
 
   // Step 10: Phase 5.3 - Generate Charts & Visualizations
   generateAllCharts();
+
+  // Step 11: Update tab visibility based on mode
+  updateTabVisibility(currentMode);
 
   // Step 11: Phase 4 - Calculate scores, generate alerts, and save to history
   try {
@@ -335,6 +349,7 @@ function refreshComps() {
 
 /**
  * Clears all analysis tabs back to blank state
+ * Removes all content, formatting, charts, borders, and background colors
  */
 function clearSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -357,34 +372,107 @@ function clearSheets() {
   tabsToClear.forEach(name => {
     const sheet = ss.getSheetByName(name);
     if (sheet) {
-      const nameLower = name.toLowerCase();
-      sheet.clearContents();
+      // Remove all charts
+      const charts = sheet.getCharts();
+      charts.forEach(chart => {
+        sheet.removeChart(chart);
+      });
 
-      if (nameLower.includes("dashboard")) {
-        sheet.getRange("A1").setValue("Dashboard").setFontWeight("bold").setFontSize(14);
-      } else if (nameLower.includes("flip analysis")) {
-        sheet.getRange("A1").setValue("Fix & Flip Analysis").setFontWeight("bold").setFontSize(14);
-      } else if (nameLower.includes("rental")) {
-        sheet.getRange("A1").setValue("Rental Analysis").setFontWeight("bold").setFontSize(14);
-      } else if (nameLower.includes("sensitivity")) {
-        sheet.getRange("A1").setValue("Flip Sensitivity (ARV vs Rehab)").setFontWeight("bold").setFontSize(14);
+      // Clear all content and formatting
+      sheet.clear();
+
+      // Get the entire data range and clear all formatting
+      const maxRows = sheet.getMaxRows();
+      const maxCols = sheet.getMaxColumns();
+      const fullRange = sheet.getRange(1, 1, maxRows, maxCols);
+
+      // Clear all formatting
+      fullRange.clearFormat();
+      fullRange.clearNote();
+      fullRange.clearDataValidations();
+
+      // Remove all borders
+      fullRange.setBorder(false, false, false, false, false, false);
+
+      // Reset background to white
+      fullRange.setBackground('#ffffff');
+
+      // Reset font to default
+      fullRange.setFontColor('#000000');
+      fullRange.setFontFamily('Arial');
+      fullRange.setFontSize(10);
+      fullRange.setFontWeight('normal');
+      fullRange.setFontStyle('normal');
+
+      // Reset alignment
+      fullRange.setHorizontalAlignment('left');
+      fullRange.setVerticalAlignment('bottom');
+
+      // Remove any conditional formatting rules
+      const rules = sheet.getConditionalFormatRules();
+      sheet.setConditionalFormatRules([]);
+
+      // Reset column widths to default (100 pixels)
+      for (let i = 1; i <= maxCols; i++) {
+        sheet.setColumnWidth(i, 100);
       }
+
+      // Reset row heights to default (21 pixels)
+      for (let i = 1; i <= Math.min(maxRows, 100); i++) {
+        sheet.setRowHeight(i, 21);
+      }
+
+      // Unfreeze rows and columns
+      sheet.setFrozenRows(0);
+      sheet.setFrozenColumns(0);
+
+      Logger.log(`✅ Completely cleared sheet: ${name}`);
     }
   });
 
   // Clear hidden history sheet
   const historySheet = ss.getSheetByName("Analysis_History");
   if (historySheet) {
+    // Remove all charts
+    const charts = historySheet.getCharts();
+    charts.forEach(chart => {
+      historySheet.removeChart(chart);
+    });
+
     historySheet.clear();
+
     // Re-add headers
     const headers = ['Date', 'Address', 'Type', 'ROI', 'Profit', 'Cash Flow', 'Score', 'Status', 'Alerts'];
     historySheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     styleHeader(historySheet.getRange(1, 1, 1, headers.length), 'h3');
   }
 
-  // Uncomment if you also want to reset Inputs tab:
+  // Clear Inputs tab values only (keep structure)
   const inputs = ss.getSheetByName("Inputs");
-  if (inputs) inputs.getRange("B2:B28").clearContent();
+  if (inputs) {
+    inputs.getRange("B2:B28").clearContent();
+  }
 
-  SpreadsheetApp.getUi().alert("🧹 All analysis sheets cleared!\n\nCleared: Dashboard, Analysis tabs, History, and all enhancement tabs.");
+  // Switch back to Simple Mode FIRST (before recreating dashboard)
+  setAnalysisMode('Simple');
+
+  // Hide advanced tabs
+  updateTabVisibility('Simple');
+
+  // Recreate Dashboard with proper styling (will now read Simple mode)
+  const dashboard = ss.getSheetByName("Dashboard");
+  if (dashboard) {
+    createDashboard();
+  }
+
+  SpreadsheetApp.getUi().alert("🧹 All analysis sheets completely cleared!\n\nRemoved: Content, formatting, charts, borders, backgrounds, and conditional formatting.\n\nCleared: Dashboard, Analysis tabs, History, and all enhancement tabs.\n\nMode switched to Simple Mode with advanced tabs hidden.\n\nDashboard has been recreated with proper styling.");
+}
+
+// ============================================================================
+// EXPORTS - Make helper functions available globally
+// ============================================================================
+
+if (typeof global !== 'undefined') {
+  global.getFlipMetric = getFlipMetric;
+  global.getRentalMetric = getRentalMetric;
 }
