@@ -262,3 +262,21 @@ function setByRef(cellRef, value, format = null) {
     range.setNumberFormat(format);
   }
 }
+
+// ============================================================================
+// EXPORTS - Make functions available globally
+// ============================================================================
+
+if (typeof global !== 'undefined') {
+  global.getField = getField;
+  global.setField = setField;
+  global.getFields = getFields;
+  global.setFields = setFields;
+  global.getAllInputs = getAllInputs;
+  global.getFieldRef = getFieldRef;
+  global.validateFieldMappings = validateFieldMappings;
+  global.clearFieldCache = clearFieldCache;
+  global.initializeFieldMappings = initializeFieldMappings;
+  global.getByRef = getByRef;
+  global.setByRef = setByRef;
+}
