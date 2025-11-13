@@ -21,6 +21,8 @@ function onOpen() {
       .addItem("Full Loan Term", "generateFullAmortizationSchedule"))
     .addSeparator()
     .addSubMenu(ui.createMenu("Advanced Tools")
+      .addItem("📊 Interactive Scenario Analyzer", "showScenarioAnalyzer")
+      .addItem("📈 Generate Charts & Visualizations", "menuRegenerateCharts")
       .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
       .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
       .addItem("Flip Enhancements (Timeline, Partners, Renovation)", "generateFlipEnhancements")
@@ -170,7 +172,10 @@ function runAnalysis(data) {
   // Step 9: Generate Flip Enhancements (Phase 3 Enhancement)
   generateFlipEnhancements();
 
-  // Step 10: Phase 4 - Calculate scores, generate alerts, and save to history
+  // Step 10: Phase 5.3 - Generate Charts & Visualizations
+  generateAllCharts();
+
+  // Step 11: Phase 4 - Calculate scores, generate alerts, and save to history
   try {
     // Get analysis results from sheets
     const flipSheet = ss.getSheetByName("Flip Analysis");
@@ -247,7 +252,7 @@ function runAnalysis(data) {
     Logger.log("⚠️ Phase 4 integration error: " + e);
   }
 
-  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.\n\nIncludes: Flip & Rental Analysis, Sensitivity, Amortization, Tax Benefits, Advanced Metrics, Flip Enhancements, Scoring, and Alerts.\n\n📊 View the Dashboard for a summary of all analyses.");
+  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.\n\nIncludes: Flip & Rental Analysis, Sensitivity, Amortization, Tax Benefits, Advanced Metrics, Flip Enhancements, Charts & Visualizations, Scoring, and Alerts.\n\n📊 View the Dashboard for a summary of all analyses.");
 }
 
 /**
@@ -344,7 +349,9 @@ function clearSheets() {
     "Flip Timeline",
     "Partner Profit Split",
     "Renovation Timeline",
-    "Filtered Comps"
+    "Filtered Comps",
+    "Custom Scenarios",
+    "Monte Carlo Analysis"
   ];
 
   tabsToClear.forEach(name => {

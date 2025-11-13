@@ -72,8 +72,17 @@ function generateFlipAnalysis(comps) {
     .setHorizontalAlignment("left");
   row++;
 
+  // Get property tax and insurance values
+  const propertyTaxRate = getField("propertyTaxRate", 0.0125);
+  const insuranceMonthly = getField("insuranceMonthly", 100);
+  const utilitiesCost = getField("utilitiesCost", 0);
+
+  // Calculate holding costs (mortgage + HELOC + taxes + insurance + utilities)
+  const monthlyPropertyTax = (purchasePrice * propertyTaxRate) / 12;
+  const monthlyHoldingCosts = monthlyPI + (helocAmount * helocInterest / 12) + monthlyPropertyTax + insuranceMonthly + utilitiesCost;
+  const holdingCost = monthlyHoldingCosts * monthsToFlip;
+
   const closingCosts = purchasePrice * 0.02;
-  const holdingCost = monthlyPI * monthsToFlip + helocCost;
   const contingency = rehabCost * 0.1;
   const totalRehab = rehabCost + contingency;
   const totalCosts = closingCosts + holdingCost + totalRehab + downPayment;
@@ -83,7 +92,13 @@ function generateFlipAnalysis(comps) {
     ["Contingency (10%)", contingency],
     ["Total Rehab Cost", totalRehab],
     ["Acquisition Costs (2%)", closingCosts],
-    ["Holding Costs", holdingCost],
+    ["Holding Costs (Monthly)", monthlyHoldingCosts],
+    ["  - Mortgage P&I", monthlyPI],
+    ["  - HELOC Interest", helocAmount * helocInterest / 12],
+    ["  - Property Tax", monthlyPropertyTax],
+    ["  - Insurance", insuranceMonthly],
+    ["  - Utilities", utilitiesCost],
+    ["Total Holding Costs (" + monthsToFlip + " months)", holdingCost],
     ["Total Cash Required", totalCosts]
   ];
 
@@ -91,6 +106,13 @@ function generateFlipAnalysis(comps) {
   sheet.getRange(row, 1, costData.length, 2).setValues(costData);
   sheet.getRange(row, 1, costData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
   sheet.getRange(row, 2, costData.length, 1).setHorizontalAlignment("right");
+
+  // Indent the breakdown items
+  sheet.getRange(row + 5, 1, 5, 1).setFontWeight("normal").setFontStyle("italic");
+
+  // Highlight total holding costs
+  sheet.getRange(row + 10, 1, 1, 2).setBackground("#fff9e6");
+
   row += costData.length + 1;
 
   // --- Section 3: Comps (Auto-Fetched) ---

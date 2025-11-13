@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 15px;
+      margin: 0;
+      background-color: #f7f9fc;
+    }
+
+    h2 {
+      color: #1a73e8;
+      margin-top: 0;
+      font-size: 18px;
+      border-bottom: 2px solid #1a73e8;
+      padding-bottom: 8px;
+    }
+
+    h3 {
+      color: #333;
+      font-size: 14px;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+
+    .section {
+      background: white;
+      padding: 15px;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .slider-container {
+      margin-bottom: 20px;
+    }
+
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .slider-value {
+      color: #1a73e8;
+      font-weight: bold;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: #e0e0e0;
+      outline: none;
+      -webkit-appearance: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1a73e8;
+      cursor: pointer;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1a73e8;
+      cursor: pointer;
+      border: none;
+    }
+
+    .metric-card {
+      background: #f7f9fc;
+      padding: 12px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      border-left: 4px solid #1a73e8;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .metric-value {
+      font-size: 20px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .metric-change {
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .positive {
+      color: #34a853;
+    }
+
+    .negative {
+      color: #ea4335;
+    }
+
+    .button {
+      background-color: #1a73e8;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      width: 100%;
+      margin-bottom: 10px;
+      transition: background-color 0.2s;
+    }
+
+    .button:hover {
+      background-color: #1557b0;
+    }
+
+    .button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    .button-secondary {
+      background-color: #34a853;
+    }
+
+    .button-secondary:hover {
+      background-color: #2d8e47;
+    }
+
+    .button-warning {
+      background-color: #fbbc04;
+      color: #333;
+    }
+
+    .button-warning:hover {
+      background-color: #e0a800;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+
+    .error {
+      background-color: #fef3f3;
+      color: #ea4335;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    .success {
+      background-color: #f3fef6;
+      color: #34a853;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      font-size: 14px;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+
+    .tabs {
+      display: flex;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      cursor: pointer;
+      background: none;
+      border: none;
+      font-size: 13px;
+      font-weight: bold;
+      color: #666;
+      transition: all 0.2s;
+    }
+
+    .tab.active {
+      color: #1a73e8;
+      border-bottom: 2px solid #1a73e8;
+      margin-bottom: -2px;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <h2>📊 Scenario Analyzer</h2>
+
+  <div id="loading" class="loading">
+    Loading property data...
+  </div>
+
+  <div id="error" class="error" style="display: none;"></div>
+  <div id="success" class="success" style="display: none;"></div>
+
+  <div id="content" style="display: none;">
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('sliders')">Sliders</button>
+      <button class="tab" onclick="switchTab('results')">Results</button>
+    </div>
+
+    <!-- Sliders Tab -->
+    <div id="sliders-tab" class="tab-content active">
+      <div class="section">
+        <h3>Adjust Variables</h3>
+
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>ARV</span>
+            <span class="slider-value" id="arv-value">Loading...</span>
+          </div>
+          <input type="range" id="arv-slider" min="-20" max="20" value="0" step="1" oninput="updateScenario()">
+          <div style="font-size: 11px; color: #666; margin-top: 3px;" id="arv-display"></div>
+        </div>
+
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Rehab Cost</span>
+            <span class="slider-value" id="rehab-value">Loading...</span>
+          </div>
+          <input type="range" id="rehab-slider" min="-20" max="40" value="0" step="1" oninput="updateScenario()">
+          <div style="font-size: 11px; color: #666; margin-top: 3px;" id="rehab-display"></div>
+        </div>
+
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Monthly Rent</span>
+            <span class="slider-value" id="rent-value">Loading...</span>
+          </div>
+          <input type="range" id="rent-slider" min="-20" max="20" value="0" step="1" oninput="updateScenario()">
+          <div style="font-size: 11px; color: #666; margin-top: 3px;" id="rent-display"></div>
+        </div>
+
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Interest Rate</span>
+            <span class="slider-value" id="interest-value">Loading...</span>
+          </div>
+          <input type="range" id="interest-slider" min="-2" max="3" value="0" step="0.1" oninput="updateScenario()">
+          <div style="font-size: 11px; color: #666; margin-top: 3px;" id="interest-display"></div>
+        </div>
+
+        <div class="slider-container">
+          <div class="slider-label">
+            <span>Months to Flip</span>
+            <span class="slider-value" id="months-value">Loading...</span>
+          </div>
+          <input type="range" id="months-slider" min="-3" max="6" value="0" step="1" oninput="updateScenario()">
+          <div style="font-size: 11px; color: #666; margin-top: 3px;" id="months-display"></div>
+        </div>
+
+        <button class="button button-warning" onclick="resetSliders()">Reset All</button>
+      </div>
+    </div>
+
+    <!-- Results Tab -->
+    <div id="results-tab" class="tab-content">
+      <div class="section">
+        <h3>Flip Metrics</h3>
+        <div class="metric-card">
+          <div class="metric-label">Net Profit</div>
+          <div class="metric-value" id="flip-profit">$0</div>
+          <div class="metric-change" id="flip-profit-change"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">ROI</div>
+          <div class="metric-value" id="flip-roi">0%</div>
+          <div class="metric-change" id="flip-roi-change"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Rental Metrics</h3>
+        <div class="metric-card">
+          <div class="metric-label">Monthly Cash Flow</div>
+          <div class="metric-value" id="rental-cashflow">$0</div>
+          <div class="metric-change" id="rental-cashflow-change"></div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Cap Rate</div>
+          <div class="metric-value" id="rental-caprate">0%</div>
+          <div class="metric-change" id="rental-caprate-change"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Save Scenario</h3>
+        <input type="text" id="scenario-name" placeholder="Enter scenario name...">
+        <button class="button button-secondary" onclick="saveScenario()">Save Custom Scenario</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Advanced Analysis</h3>
+      <button class="button" onclick="runMonteCarlo()">Run Monte Carlo Simulation</button>
+    </div>
+  </div>
+
+  <script>
+    let baseData = null;
+    let currentResults = null;
+
+    // Load initial data
+    google.script.run
+      .withSuccessHandler(onDataLoaded)
+      .withFailureHandler(onError)
+      .getScenarioBaseData();
+
+    function onDataLoaded(data) {
+      if (!data.success) {
+        showError(data.error || 'Failed to load property data');
+        return;
+      }
+
+      baseData = data;
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+
+      // Initialize with base values
+      updateScenario();
+    }
+
+    function onError(error) {
+      showError(error.message || 'An error occurred');
+      document.getElementById('loading').style.display = 'none';
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('error');
+      errorDiv.textContent = '❌ ' + message;
+      errorDiv.style.display = 'block';
+      setTimeout(() => {
+        errorDiv.style.display = 'none';
+      }, 5000);
+    }
+
+    function showSuccess(message) {
+      const successDiv = document.getElementById('success');
+      successDiv.textContent = '✅ ' + message;
+      successDiv.style.display = 'block';
+      setTimeout(() => {
+        successDiv.style.display = 'none';
+      }, 3000);
+    }
+
+    function switchTab(tabName) {
+      // Update tab buttons
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      event.target.classList.add('active');
+
+      // Update tab content
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      document.getElementById(tabName + '-tab').classList.add('active');
+    }
+
+    function updateScenario() {
+      if (!baseData || !baseData.baseValues) {
+        return;
+      }
+
+      // Get slider values
+      const arvAdj = parseFloat(document.getElementById('arv-slider').value);
+      const rehabAdj = parseFloat(document.getElementById('rehab-slider').value);
+      const rentAdj = parseFloat(document.getElementById('rent-slider').value);
+      const interestAdj = parseFloat(document.getElementById('interest-slider').value);
+      const monthsAdj = parseInt(document.getElementById('months-slider').value);
+
+      // Calculate new values
+      const baseARV = baseData.baseValues.arv || 0;
+      const baseRehab = baseData.baseValues.rehabCost || 0;
+      const baseRent = baseData.baseValues.rentEstimate || 0;
+      const baseInterest = baseData.baseValues.interestRate || 0;
+      const baseMonths = baseData.baseValues.monthsToFlip || 0;
+
+      const newARV = baseARV * (1 + arvAdj / 100);
+      const newRehab = baseRehab * (1 + rehabAdj / 100);
+      const newRent = baseRent * (1 + rentAdj / 100);
+      const newInterest = baseInterest + interestAdj;
+      const newMonths = baseMonths + monthsAdj;
+
+      // Update slider value displays (percentage change)
+      document.getElementById('arv-value').textContent = (arvAdj > 0 ? '+' : '') + arvAdj + '%';
+      document.getElementById('rehab-value').textContent = (rehabAdj > 0 ? '+' : '') + rehabAdj + '%';
+      document.getElementById('rent-value').textContent = (rentAdj > 0 ? '+' : '') + rentAdj + '%';
+      document.getElementById('interest-value').textContent = (interestAdj > 0 ? '+' : '') + interestAdj + '%';
+      document.getElementById('months-value').textContent = (monthsAdj > 0 ? '+' : '') + monthsAdj + ' months';
+
+      // Update detailed displays (base → new)
+      document.getElementById('arv-display').innerHTML =
+        formatCurrency(baseARV) + ' → <strong>' + formatCurrency(newARV) + '</strong>';
+      document.getElementById('rehab-display').innerHTML =
+        formatCurrency(baseRehab) + ' → <strong>' + formatCurrency(newRehab) + '</strong>';
+      document.getElementById('rent-display').innerHTML =
+        formatCurrency(baseRent) + ' → <strong>' + formatCurrency(newRent) + '</strong>';
+      document.getElementById('interest-display').innerHTML =
+        baseInterest.toFixed(2) + '% → <strong>' + newInterest.toFixed(2) + '%</strong>';
+      document.getElementById('months-display').innerHTML =
+        baseMonths + ' → <strong>' + newMonths + '</strong> months';
+
+      // Calculate new scenario
+      const adjustments = {
+        arv: arvAdj,
+        rehab: rehabAdj,
+        rent: rentAdj,
+        interestRate: interestAdj,
+        monthsToFlip: monthsAdj
+      };
+
+      google.script.run
+        .withSuccessHandler(onScenarioCalculated)
+        .withFailureHandler(onError)
+        .calculateScenario(adjustments);
+    }
+
+    function onScenarioCalculated(results) {
+      if (!results.success) {
+        showError(results.error || 'Calculation failed');
+        return;
+      }
+
+      currentResults = results;
+
+      // Update flip metrics
+      document.getElementById('flip-profit').textContent = formatCurrency(results.flipMetrics.profit);
+      document.getElementById('flip-roi').textContent = results.flipMetrics.roi + '%';
+
+      // Update flip changes
+      const profitChange = results.flipMetrics.profitChange;
+      const roiChange = parseFloat(results.flipMetrics.roiChange);
+
+      document.getElementById('flip-profit-change').innerHTML =
+        formatChange(profitChange, true);
+      document.getElementById('flip-roi-change').innerHTML =
+        formatChange(roiChange, false) + '%';
+
+      // Update rental metrics
+      document.getElementById('rental-cashflow').textContent =
+        formatCurrency(results.rentalMetrics.monthlyCashFlow);
+      document.getElementById('rental-caprate').textContent =
+        results.rentalMetrics.capRate + '%';
+
+      // Update rental changes
+      const cashflowChange = results.rentalMetrics.cashFlowChange;
+      const caprateChange = parseFloat(results.rentalMetrics.capRateChange);
+
+      document.getElementById('rental-cashflow-change').innerHTML =
+        formatChange(cashflowChange, true);
+      document.getElementById('rental-caprate-change').innerHTML =
+        formatChange(caprateChange, false) + '%';
+    }
+
+    function formatCurrency(value) {
+      return '$' + Math.abs(value).toLocaleString('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      });
+    }
+
+    function formatChange(value, isCurrency) {
+      if (value === 0) return '';
+
+      const sign = value > 0 ? '+' : '';
+      const className = value > 0 ? 'positive' : 'negative';
+      const arrow = value > 0 ? '↑' : '↓';
+      const formatted = isCurrency ? formatCurrency(value) : Math.abs(value).toFixed(2);
+
+      return `<span class="${className}">${arrow} ${sign}${formatted}</span>`;
+    }
+
+    function resetSliders() {
+      document.getElementById('arv-slider').value = 0;
+      document.getElementById('rehab-slider').value = 0;
+      document.getElementById('rent-slider').value = 0;
+      document.getElementById('interest-slider').value = 0;
+      document.getElementById('months-slider').value = 0;
+      updateScenario();
+    }
+
+    function saveScenario() {
+      const scenarioName = document.getElementById('scenario-name').value.trim();
+
+      if (!scenarioName) {
+        showError('Please enter a scenario name');
+        return;
+      }
+
+      if (!currentResults) {
+        showError('No scenario to save');
+        return;
+      }
+
+      const adjustments = {
+        arv: parseFloat(document.getElementById('arv-slider').value),
+        rehab: parseFloat(document.getElementById('rehab-slider').value),
+        rent: parseFloat(document.getElementById('rent-slider').value),
+        interestRate: parseFloat(document.getElementById('interest-slider').value),
+        monthsToFlip: parseInt(document.getElementById('months-slider').value)
+      };
+
+      google.script.run
+        .withSuccessHandler(onScenarioSaved)
+        .withFailureHandler(onError)
+        .saveCustomScenario(scenarioName, adjustments, currentResults);
+    }
+
+    function onScenarioSaved(result) {
+      if (result.success) {
+        showSuccess(result.message);
+        document.getElementById('scenario-name').value = '';
+      } else {
+        showError(result.error || 'Failed to save scenario');
+      }
+    }
+
+    function runMonteCarlo() {
+      if (!confirm('Run Monte Carlo simulation with 1000 iterations?\n\nThis may take 30-60 seconds.')) {
+        return;
+      }
+
+      showSuccess('Running simulation... Please wait.');
+
+      google.script.run
+        .withSuccessHandler(onMonteCarloComplete)
+        .withFailureHandler(onError)
+        .runMonteCarloSimulation(1000);
+    }
+
+    function onMonteCarloComplete(results) {
+      if (results.success) {
+        google.script.run
+          .withSuccessHandler(() => {
+            showSuccess('Monte Carlo analysis complete! Check the new sheet.');
+          })
+          .withFailureHandler(onError)
+          .displayMonteCarloResults(results);
+      } else {
+        showError(results.error || 'Simulation failed');
+      }
+    }
+  </script>
+</body>
+</html>
