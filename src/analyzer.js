@@ -1,4 +1,18 @@
 /**
+ * Check if currently in Simple Mode
+ * @returns {boolean}
+ */
+function isSimpleMode() {
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    return (docProps.getProperty('analysisMode') || 'Simple') === 'Simple';
+  } catch (e) {
+    Logger.log("Error checking mode: " + e);
+    return true; // Default to Simple if error
+  }
+}
+
+/**
  * Generate Flip Analysis Report
  * Includes: Project Summary, Cost Breakdown, Comps, Profit & ROI, Scenarios
  */
@@ -37,6 +51,9 @@ function generateFlipAnalysis(comps) {
   const helocCost = helocAmount * helocInterest * (monthsToFlip / 12);
   const totalCashRequired = downPayment + rehabCost + cashInvestment;
 
+  // Check if in Simple Mode
+  const simpleMode = isSimpleMode();
+
   // --- Section 1: Project Summary ---
   sheet.getRange(row, 1, 1, 2).merge()
     .setValue("Project Summary")
@@ -46,33 +63,37 @@ function generateFlipAnalysis(comps) {
     .setHorizontalAlignment("left");
   row++;
 
-  const summaryData = [
-    ["Purchase Price", purchasePrice],
-    ["Down Payment (%)", downPaymentPct],
-    ["Loan Amount", loanAmount],
-    ["Interest Rate (%)", interestRate],
-    ["Loan Term (Years)", loanTerm],
-    ["Months to Flip", monthsToFlip],
-    ["", ""],
-    ["HELOC Interest Cost", helocCost],
-    ["Total Cash Required", totalCashRequired]
-  ];
+  let summaryData;
+  if (simpleMode) {
+    // Simple Mode: Show only essential fields
+    summaryData = [
+      ["Purchase Price", purchasePrice],
+      ["Rehab Cost", rehabCost],
+      ["Months to Flip", monthsToFlip],
+      ["Total Cash Required", totalCashRequired]
+    ];
+  } else {
+    // Advanced Mode: Show all fields
+    summaryData = [
+      ["Purchase Price", purchasePrice],
+      ["Down Payment (%)", downPaymentPct],
+      ["Loan Amount", loanAmount],
+      ["Interest Rate (%)", interestRate],
+      ["Loan Term (Years)", loanTerm],
+      ["Months to Flip", monthsToFlip],
+      ["", ""],
+      ["HELOC Interest Cost", helocCost],
+      ["Total Cash Required", totalCashRequired]
+    ];
+  }
 
   sheet.getRange(row, 1, summaryData.length, 2).setValues(summaryData);
   sheet.getRange(row, 1, summaryData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
   sheet.getRange(row, 2, summaryData.length, 1).setHorizontalAlignment("right");
   row += summaryData.length + 1;
 
-  // --- Section 2: Rehab & Cost Breakdown ---
-  sheet.getRange(row, 1, 1, 2).merge()
-    .setValue("Rehab & Cost Breakdown")
-    .setFontWeight("bold")
-    .setFontSize(12)
-    .setBackground("#e8f0fe")
-    .setHorizontalAlignment("left");
-  row++;
-
-  // Get property tax and insurance values
+  // --- Section 2: Rehab & Cost Breakdown (Advanced Mode Only) ---
+  // Get property tax and insurance values (needed for calculations)
   const propertyTaxRate = getField("propertyTaxRate", 0.0125);
   const insuranceMonthly = getField("insuranceMonthly", 100);
   const utilitiesCost = getField("utilitiesCost", 0);
@@ -87,35 +108,46 @@ function generateFlipAnalysis(comps) {
   const totalRehab = rehabCost + contingency;
   const totalCosts = closingCosts + holdingCost + totalRehab + downPayment;
 
-  const costData = [
-    ["Rehab Cost (Base)", rehabCost],
-    ["Contingency (10%)", contingency],
-    ["Total Rehab Cost", totalRehab],
-    ["Acquisition Costs (2%)", closingCosts],
-    ["Holding Costs (Monthly)", monthlyHoldingCosts],
-    ["  - Mortgage P&I", monthlyPI],
-    ["  - HELOC Interest", helocAmount * helocInterest / 12],
-    ["  - Property Tax", monthlyPropertyTax],
-    ["  - Insurance", insuranceMonthly],
-    ["  - Utilities", utilitiesCost],
-    ["Total Holding Costs (" + monthsToFlip + " months)", holdingCost],
-    ["Total Cash Required", totalCosts]
-  ];
+  let costStartRow = row;
+  if (!simpleMode) {
+    sheet.getRange(row, 1, 1, 2).merge()
+      .setValue("Rehab & Cost Breakdown")
+      .setFontWeight("bold")
+      .setFontSize(12)
+      .setBackground("#e8f0fe")
+      .setHorizontalAlignment("left");
+    row++;
 
-  const costStartRow = row;
-  sheet.getRange(row, 1, costData.length, 2).setValues(costData);
-  sheet.getRange(row, 1, costData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
-  sheet.getRange(row, 2, costData.length, 1).setHorizontalAlignment("right");
+    const costData = [
+      ["Rehab Cost (Base)", rehabCost],
+      ["Contingency (10%)", contingency],
+      ["Total Rehab Cost", totalRehab],
+      ["Acquisition Costs (2%)", closingCosts],
+      ["Holding Costs (Monthly)", monthlyHoldingCosts],
+      ["  - Mortgage P&I", monthlyPI],
+      ["  - HELOC Interest", helocAmount * helocInterest / 12],
+      ["  - Property Tax", monthlyPropertyTax],
+      ["  - Insurance", insuranceMonthly],
+      ["  - Utilities", utilitiesCost],
+      ["Total Holding Costs (" + monthsToFlip + " months)", holdingCost],
+      ["Total Cash Required", totalCosts]
+    ];
 
-  // Indent the breakdown items
-  sheet.getRange(row + 5, 1, 5, 1).setFontWeight("normal").setFontStyle("italic");
+    costStartRow = row;
+    sheet.getRange(row, 1, costData.length, 2).setValues(costData);
+    sheet.getRange(row, 1, costData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
+    sheet.getRange(row, 2, costData.length, 1).setHorizontalAlignment("right");
 
-  // Highlight total holding costs
-  sheet.getRange(row + 10, 1, 1, 2).setBackground("#fff9e6");
+    // Indent the breakdown items
+    sheet.getRange(row + 5, 1, 5, 1).setFontWeight("normal").setFontStyle("italic");
 
-  row += costData.length + 1;
+    // Highlight total holding costs
+    sheet.getRange(row + 10, 1, 1, 2).setBackground("#fff9e6");
 
-  // --- Section 3: Comps (Auto-Fetched) ---
+    row += costData.length + 1;
+  }
+
+  // --- Section 3: Comps Data (show header in both modes) ---
   sheet.getRange(row, 1, 1, 5).merge()
     .setValue("Comps Data (Auto-Fetched)")
     .setFontWeight("bold")
@@ -124,7 +156,6 @@ function generateFlipAnalysis(comps) {
     .setHorizontalAlignment("left");
   row++;
 
-  const compsHeaderRow = row;
   const compsHeaders = [["Address", "Sale Price", "SqFt", "Sale Date", "Distance"]];
   sheet.getRange(row, 1, 1, 5).setValues(compsHeaders);
   sheet.getRange(row, 1, 1, 5)
@@ -132,10 +163,14 @@ function generateFlipAnalysis(comps) {
     .setBackground("#d9e2f3")
     .setHorizontalAlignment("center")
     .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
 
+  // Calculate ARV from Comps
   let arv = 0;
   if (!comps || comps.length === 0) {
-    sheet.getRange(row + 1, 1).setValue("⚠️ No comps data returned from API.");
+    if (!simpleMode) {
+      sheet.getRange(row, 1).setValue("⚠️ No comps data returned from API.");
+    }
     arv = purchasePrice * 1.1;
   } else {
     // Separate remodeled and unremodeled comps
@@ -259,19 +294,23 @@ function generateFlipAnalysis(comps) {
   const currencyNoDecimal = '"$"#,##0';
   const percentFormat = "0.00%";
 
-  // Project Summary - Apply formats individually to avoid conflicts
-  sheet.getRange(5, 2).setNumberFormat(currencyNoDecimal); // Purchase Price
-  sheet.getRange(6, 2).setNumberFormat("0.00%"); // Down Payment %
-  sheet.getRange(7, 2).setNumberFormat(currencyNoDecimal); // Loan Amount
-  sheet.getRange(8, 2).setNumberFormat("0.00%"); // Interest Rate %
-  sheet.getRange(9, 2).setNumberFormat("0"); // Loan Term (Years) - plain number
-  sheet.getRange(10, 2).setNumberFormat("0"); // Months to Flip - plain number
-  // Row 11 is spacer
-  sheet.getRange(12, 2).setNumberFormat(currencyNoDecimal); // HELOC Interest Cost
-  sheet.getRange(13, 2).setNumberFormat(currencyNoDecimal); // Total Cash Required
-
-  // Rehab & Cost Breakdown - Apply currency format
-  sheet.getRange(costStartRow, 2, costData.length, 1).setNumberFormat(currencyNoDecimal);
+  // Project Summary - Apply formats based on mode
+  if (simpleMode) {
+    sheet.getRange(5, 2).setNumberFormat(currencyNoDecimal); // Purchase Price
+    sheet.getRange(6, 2).setNumberFormat(currencyNoDecimal); // Rehab Cost
+    sheet.getRange(7, 2).setNumberFormat("0"); // Months to Flip
+    sheet.getRange(8, 2).setNumberFormat(currencyNoDecimal); // Total Cash Required
+  } else {
+    sheet.getRange(5, 2).setNumberFormat(currencyNoDecimal); // Purchase Price
+    sheet.getRange(6, 2).setNumberFormat("0.00%"); // Down Payment %
+    sheet.getRange(7, 2).setNumberFormat(currencyNoDecimal); // Loan Amount
+    sheet.getRange(8, 2).setNumberFormat("0.00%"); // Interest Rate %
+    sheet.getRange(9, 2).setNumberFormat("0"); // Loan Term (Years) - plain number
+    sheet.getRange(10, 2).setNumberFormat("0"); // Months to Flip - plain number
+    // Row 11 is spacer
+    sheet.getRange(12, 2).setNumberFormat(currencyNoDecimal); // HELOC Interest Cost
+    sheet.getRange(13, 2).setNumberFormat(currencyNoDecimal); // Total Cash Required
+  }
 
   // Format Profit & ROI section (using stored row positions)
   sheet.getRange(profitStartRow, 2).setNumberFormat(currencyNoDecimal); // ARV
@@ -349,6 +388,7 @@ function generateRentalAnalysis(comps) {
     .setBackground("#e8f0fe")
     .setHorizontalAlignment("left");
   row++;
+  const asIsStartRow = row;
 
   // Annual calculations
   const grossIncome = rentEstimate * 12;
@@ -415,8 +455,21 @@ function generateRentalAnalysis(comps) {
     .setBackground("#e8f0fe")
     .setHorizontalAlignment("left");
   row++;
+  const brrrrStartRow = row;
+
+  // Get ARV from Flip Analysis - look for the ARV value in the Profit & ROI section
   const flipSheet = ss.getSheetByName("Flip Analysis");
-  const ARV = flipSheet?.getRange("B25").getValue() || purchasePrice * 1.1;
+  let ARV = purchasePrice * 1.1; // Default fallback
+  if (flipSheet) {
+    // Search for ARV in Flip Analysis sheet
+    const flipData = flipSheet.getDataRange().getValues();
+    for (let i = 0; i < flipData.length; i++) {
+      if (flipData[i][0] && flipData[i][0].toString().includes("After Repair Value")) {
+        ARV = flipData[i][1] || ARV;
+        break;
+      }
+    }
+  }
   const newRent = rentEstimate * 1.15;
 
   // BRRRR calculations (after renovation)
@@ -472,6 +525,7 @@ function generateRentalAnalysis(comps) {
   row += brrrrData.length + 2;
 
   // === Section 3: Profit & ROI Analysis ===
+  const profitROIStartRow = row;
   sheet.getRange(row, 1, 1, 2).merge()
     .setValue("Profit & ROI Analysis")
     .setFontWeight("bold")
@@ -480,13 +534,12 @@ function generateRentalAnalysis(comps) {
     .setHorizontalAlignment("left");
   row++;
 
+  // Use the BRRRR cash-on-cash return as the ROI (already calculated above)
   const annualCashFlow = newCashFlow * 12;
-  const roi = (annualCashFlow / totalCashDeployed); // Will be format in % later
   const profitData = [
     ["Annual Cash Flow ($)", annualCashFlow],
-    ["ROI (%)", roi]
+    ["ROI (%)", newCoC]
   ];
-
   sheet.getRange(row, 1, profitData.length, 2).setValues(profitData);
   sheet.getRange(row, 1, profitData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
   sheet.getRange(row, 2, profitData.length, 1).setHorizontalAlignment("right");
@@ -516,20 +569,19 @@ function generateRentalAnalysis(comps) {
   const percentFormat = "0.00%";
 
   // Apply currency formatting to all monetary values in As-Is section
-  sheet.getRange(5, 2).setNumberFormat(currencyNoDecimal); // Purchase Price
-  sheet.getRange(6, 2).setNumberFormat(currencyNoDecimal); // Monthly Rent
-  sheet.getRange(8, 2).setNumberFormat(currencyNoDecimal); // NOI
-  sheet.getRange(9, 2).setNumberFormat(currencyNoDecimal); // Annual Debt Service
-  sheet.getRange(14, 2).setNumberFormat(currencyNoDecimal); // HELOC Interest
+  sheet.getRange(asIsStartRow, 2).setNumberFormat(currencyNoDecimal); // Purchase Price
+  sheet.getRange(asIsStartRow + 1, 2).setNumberFormat(currencyNoDecimal); // Monthly Rent
+  sheet.getRange(asIsStartRow + 3, 2).setNumberFormat(currencyNoDecimal); // NOI
+  sheet.getRange(asIsStartRow + 4, 2).setNumberFormat(currencyNoDecimal); // Annual Debt Service
 
   // Apply percentage formatting to As-Is section
-  sheet.getRange(11, 2).setNumberFormat(percentFormat); // Cap Rate
-  sheet.getRange(12, 2).setNumberFormat(percentFormat); // Cash-on-Cash Return
-  sheet.getRange(13, 2).setNumberFormat("0.00"); // DSCR
-  sheet.getRange(14, 2).setNumberFormat(percentFormat); // Return on Time
+  sheet.getRange(asIsStartRow + 6, 2).setNumberFormat(percentFormat); // Cap Rate
+  sheet.getRange(asIsStartRow + 7, 2).setNumberFormat(percentFormat); // Cash-on-Cash Return
+  sheet.getRange(asIsStartRow + 8, 2).setNumberFormat("0.00"); // DSCR
+  sheet.getRange(asIsStartRow + 9, 2).setNumberFormat(percentFormat); // Return on Time
+  sheet.getRange(asIsStartRow + 10, 2).setNumberFormat(currencyNoDecimal); // HELOC Interest
 
   // Apply currency formatting to BRRRR section
-  const brrrrStartRow = 17;
   sheet.getRange(brrrrStartRow, 2).setNumberFormat(currencyNoDecimal); // ARV
   sheet.getRange(brrrrStartRow + 1, 2).setNumberFormat(currencyNoDecimal); // Post-Flip Rent
   sheet.getRange(brrrrStartRow + 3, 2).setNumberFormat(currencyNoDecimal); // NOI
@@ -542,9 +594,8 @@ function generateRentalAnalysis(comps) {
   sheet.getRange(brrrrStartRow + 9, 2).setNumberFormat(percentFormat); // Return on Time
 
   // Apply formatting to Profit & ROI section
-  const profitStartRow = brrrrStartRow + 12;
-  sheet.getRange(profitStartRow, 2).setNumberFormat(currencyNoDecimal); // Annual Cash Flow
-  sheet.getRange(profitStartRow + 1, 2).setNumberFormat(percentFormat); // ROI
+  sheet.getRange(profitROIStartRow + 1, 2).setNumberFormat(currencyNoDecimal); // Annual Cash Flow
+  sheet.getRange(profitROIStartRow + 2, 2).setNumberFormat(percentFormat); // ROI
 
   // Set column widths
   sheet.setColumnWidth(1, 250);

@@ -12,16 +12,24 @@ function generateAllCharts() {
   try {
     Logger.log("📊 Generating charts...");
 
-    // Generate charts for Flip Analysis
-    generateFlipCharts();
+    // Check current mode - only generate charts in Advanced Mode
+    const currentMode = getCurrentMode();
 
-    // Generate charts for Rental Analysis
-    generateRentalCharts();
+    if (currentMode === 'Advanced') {
+      // Generate charts for Flip Analysis
+      generateFlipCharts();
 
-    // Generate comparison charts
-    generateComparisonCharts();
+      // Generate charts for Rental Analysis
+      generateRentalCharts();
 
-    Logger.log("✅ All charts generated successfully");
+      // Generate comparison charts
+      generateComparisonCharts();
+
+      Logger.log("✅ All charts generated successfully (Advanced Mode)");
+    } else {
+      Logger.log("ℹ️ Charts skipped in Simple Mode");
+    }
+
     return { success: true };
   } catch (error) {
     Logger.log("❌ Error generating charts: " + error.message);
@@ -353,32 +361,32 @@ function createCashFlowComparisonChart(sheet) {
 
       // Look for Part 1: As-Is Rental Analysis
       if ((label.includes("Part 1") || label.includes("As-Is")) && !foundAsIs) {
-        // Look for annual cash flow in next 20 rows
+        // Look for Monthly Cash Flow and convert to annual
         for (let j = i; j < Math.min(i + 20, data.length); j++) {
           const rowLabel = data[j][0] ? data[j][0].toString().trim() : "";
-          if (rowLabel.includes("Annual Cash Flow") || rowLabel.includes("Annual Cashflow")) {
+          if (rowLabel.includes("Monthly Cash Flow")) {
             const value = data[j][1];
             if (value !== null && value !== undefined && value !== "") {
-              asIsCashFlow = parseFloat(value) || 0;
+              asIsCashFlow = (parseFloat(value) || 0) * 12; // Convert monthly to annual
               foundAsIs = true;
-              Logger.log("Found As-Is Cash Flow: " + asIsCashFlow);
+              Logger.log("Found As-Is Monthly Cash Flow, converted to annual: " + asIsCashFlow);
               break;
             }
           }
         }
       }
 
-      // Look for Part 2: BRRRR Analysis
-      if ((label.includes("Part 2") || label.includes("BRRRR")) && !foundBRRRR) {
-        // Look for annual cash flow in next 20 rows
-        for (let j = i; j < Math.min(i + 20, data.length); j++) {
+      // Look for Part 2: BRRRR Analysis - look in Profit & ROI Analysis section
+      if ((label.includes("Part 2") || label.includes("BRRRR") || label.includes("Profit & ROI Analysis")) && !foundBRRRR) {
+        // Look for annual cash flow in next 30 rows
+        for (let j = i; j < Math.min(i + 30, data.length); j++) {
           const rowLabel = data[j][0] ? data[j][0].toString().trim() : "";
           if (rowLabel.includes("Annual Cash Flow") || rowLabel.includes("Annual Cashflow")) {
             const value = data[j][1];
             if (value !== null && value !== undefined && value !== "") {
               brrrrCashFlow = parseFloat(value) || 0;
               foundBRRRR = true;
-              Logger.log("Found BRRRR Cash Flow: " + brrrrCashFlow);
+              Logger.log("Found BRRRR Annual Cash Flow: " + brrrrCashFlow);
               break;
             }
           }
@@ -387,6 +395,23 @@ function createCashFlowComparisonChart(sheet) {
 
       // Exit early if both found
       if (foundAsIs && foundBRRRR) break;
+    }
+
+    // If still not found, try alternative search
+    if (!foundAsIs) {
+      Logger.log("⚠️ Trying alternative search for As-Is cash flow...");
+      for (let i = 0; i < data.length; i++) {
+        const label = data[i][0] ? data[i][0].toString().trim() : "";
+        if (label.includes("Monthly Cash Flow") && !label.includes("BRRRR")) {
+          const value = data[i][1];
+          if (value !== null && value !== undefined && value !== "") {
+            asIsCashFlow = (parseFloat(value) || 0) * 12;
+            foundAsIs = true;
+            Logger.log("Found As-Is cash flow via alternative search: " + asIsCashFlow);
+            break;
+          }
+        }
+      }
     }
 
     // Log warning if data not found
@@ -580,11 +605,12 @@ function createROIComparisonChart(sheet) {
     const charts = sheet.getCharts();
     charts.forEach(chart => sheet.removeChart(chart));
 
-    // Create bar chart
+    // Position chart below Recent Analysis table (row 30+)
+    // This ensures it doesn't overlap with the table content
     const chart = sheet.newChart()
       .setChartType(Charts.ChartType.COLUMN)
       .addRange(sheet.getRange(dataStartRow, 10, comparisonData.length, 2))
-      .setPosition(10, 5, 0, 0)
+      .setPosition(30, 1, 0, 0)
       .setOption('title', 'ROI Comparison: Flip vs Rental')
       .setOption('width', 500)
       .setOption('height', 300)
@@ -637,6 +663,46 @@ function addPropertyTypeIcon(sheet, propertyType, row, col) {
     sheet.getRange(row, col).setValue(icon).setFontSize(20);
   } catch (error) {
     Logger.log("⚠️ Error adding property icon: " + error.message);
+  }
+}
+
+/**
+ * Clear all charts from analysis sheets
+ * Used when switching to Simple Mode
+ */
+function clearAllCharts() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Clear charts from Flip Analysis
+    const flipSheet = ss.getSheetByName("Flip Analysis");
+    if (flipSheet) {
+      const flipCharts = flipSheet.getCharts();
+      flipCharts.forEach(chart => flipSheet.removeChart(chart));
+      Logger.log("✅ Cleared charts from Flip Analysis");
+    }
+
+    // Clear charts from Rental Analysis
+    const rentalSheet = ss.getSheetByName("Rental Analysis");
+    if (rentalSheet) {
+      const rentalCharts = rentalSheet.getCharts();
+      rentalCharts.forEach(chart => rentalSheet.removeChart(chart));
+      Logger.log("✅ Cleared charts from Rental Analysis");
+    }
+
+    // Clear charts from Dashboard
+    const dashboardSheet = ss.getSheetByName("Dashboard");
+    if (dashboardSheet) {
+      const dashboardCharts = dashboardSheet.getCharts();
+      dashboardCharts.forEach(chart => dashboardSheet.removeChart(chart));
+      Logger.log("✅ Cleared charts from Dashboard");
+    }
+
+    Logger.log("✅ All charts cleared successfully");
+    return { success: true };
+  } catch (error) {
+    Logger.log("❌ Error clearing charts: " + error.message);
+    return { success: false, error: error.message };
   }
 }
 

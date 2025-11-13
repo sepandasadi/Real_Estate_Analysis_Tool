@@ -360,6 +360,20 @@ function getIndicatorForValue(value, higherIsBetter = true) {
 }
 
 /**
+ * Get star rating based on score (0-100)
+ * @param {number} score - The score value (0-100)
+ * @returns {string} - Star rating string
+ */
+function getStarRating(score) {
+  if (score >= 90) return '⭐⭐⭐⭐⭐';
+  if (score >= 80) return '⭐⭐⭐⭐';
+  if (score >= 70) return '⭐⭐⭐';
+  if (score >= 60) return '⭐⭐';
+  if (score >= 50) return '⭐';
+  return '—';
+}
+
+/**
  * Clear all formatting from a range
  * @param {Range} range - The range to clear
  */
@@ -396,5 +410,6 @@ if (typeof global !== 'undefined') {
   global.styleButton = styleButton;
   global.getColorForValue = getColorForValue;
   global.getIndicatorForValue = getIndicatorForValue;
+  global.getStarRating = getStarRating;
   global.clearFormatting = clearFormatting;
 }

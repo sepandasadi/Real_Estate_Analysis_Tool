@@ -327,9 +327,15 @@ function generateRenovationTimeline() {
     ["Final Cleanup & Staging", 1, "=D" + (row + 8), "=B" + (row + 9) + "+C" + (row + 9), "Not Started", ""]
   ];
 
+  const phaseStartRow = row;
   phases.forEach((phase, index) => {
     flipSheet.getRange(row + index, 1, 1, phase.length).setValues([phase]);
   });
+
+  // Apply number formatting to Duration, Start Week, and End Week columns
+  flipSheet.getRange(phaseStartRow, 2, phases.length, 1).setNumberFormat("0"); // Duration (weeks)
+  flipSheet.getRange(phaseStartRow, 3, phases.length, 1).setNumberFormat("0"); // Start Week
+  flipSheet.getRange(phaseStartRow, 4, phases.length, 1).setNumberFormat("0"); // End Week
 
   row += phases.length + 2;
 
@@ -381,4 +387,737 @@ function generateFlipEnhancements() {
     Logger.log("❌ Error generating flip enhancements: " + error);
     SpreadsheetApp.getUi().alert("⚠️ Error generating enhancements: " + error.message);
   }
+}
+
+/**
+ * ===============================
+ * PROJECT TRACKER (ADVANCED MODE)
+ * ===============================
+ * Comprehensive project management dashboard
+ * Only available in Advanced Mode
+ */
+
+/**
+ * Generate comprehensive Project Tracker tab
+ * Advanced Mode Only - includes budget tracking, permits, materials, etc.
+ */
+function generateProjectTracker() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Check if in Advanced Mode
+  if (isSimpleMode()) {
+    Logger.log("⚠️ Project Tracker only available in Advanced Mode");
+    return;
+  }
+
+  // Create or get Project Tracker sheet
+  let sheet = ss.getSheetByName("Project Tracker");
+  if (!sheet) {
+    sheet = ss.insertSheet("Project Tracker");
+  } else {
+    sheet.clear();
+  }
+
+  // Get input values
+  const purchasePrice = getField("purchasePrice", 0);
+  const rehabCost = getField("rehabCost", 0);
+  const monthsToFlip = getField("monthsToFlip", 6);
+
+  let row = 1;
+
+  // === HEADER ===
+  sheet.getRange(row, 1, 1, 14).merge()
+    .setValue("🏗️ PROJECT TRACKER - Advanced Mode")
+    .setFontWeight("bold")
+    .setFontSize(16)
+    .setBackground("#1a73e8")
+    .setFontColor("white")
+    .setHorizontalAlignment("center");
+  row += 2;
+
+  // === SECTION 1: ENHANCED RENOVATION TIMELINE ===
+  sheet.getRange(row, 1, 1, 14).merge()
+    .setValue("📋 Enhanced Renovation Timeline & Budget")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  // Column headers for timeline
+  const timelineHeaders = [
+    "Phase",
+    "Est. Duration (weeks)",
+    "Est. Cost",
+    "Actual Start Date",
+    "Actual End Date",
+    "Actual Duration (weeks)",
+    "Actual Cost",
+    "Time Variance",
+    "Cost Variance",
+    "% Complete",
+    "Assigned To",
+    "Contact",
+    "Status",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, timelineHeaders.length).setValues([timelineHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setWrap(true)
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  // Renovation phases with estimated costs
+  const estimatedCostPerPhase = rehabCost / 10; // Distribute evenly as starting point
+  const phases = [
+    ["Demo & Cleanup", 1, estimatedCostPerPhase * 0.8],
+    ["Framing & Structural", 2, estimatedCostPerPhase * 1.5],
+    ["Plumbing & Electrical", 2, estimatedCostPerPhase * 1.3],
+    ["HVAC", 1, estimatedCostPerPhase * 1.2],
+    ["Drywall & Insulation", 2, estimatedCostPerPhase * 0.9],
+    ["Flooring", 1, estimatedCostPerPhase * 1.1],
+    ["Kitchen & Bath", 2, estimatedCostPerPhase * 1.4],
+    ["Paint & Finish", 1, estimatedCostPerPhase * 0.7],
+    ["Landscaping & Exterior", 1, estimatedCostPerPhase * 0.9],
+    ["Final Cleanup & Staging", 1, estimatedCostPerPhase * 0.6]
+  ];
+
+  const timelineStartRow = row;
+  phases.forEach((phase, index) => {
+    const currentRow = row + index;
+    const phaseData = [
+      phase[0], // Phase name
+      phase[1], // Est. Duration
+      phase[2], // Est. Cost
+      "", // Actual Start Date (user fills)
+      "", // Actual End Date (user fills)
+      `=IF(AND(D${currentRow}<>"",E${currentRow}<>""),E${currentRow}-D${currentRow},"")`, // Actual Duration
+      "", // Actual Cost (user fills)
+      `=IF(F${currentRow}<>"",F${currentRow}-B${currentRow},"")`, // Time Variance
+      `=IF(G${currentRow}<>"",G${currentRow}-C${currentRow},"")`, // Cost Variance
+      0, // % Complete (user updates)
+      "", // Assigned To
+      "", // Contact
+      "Not Started", // Status
+      "" // Notes
+    ];
+
+    sheet.getRange(currentRow, 1, 1, phaseData.length).setValues([phaseData]);
+  });
+
+  // Format timeline section
+  sheet.getRange(timelineStartRow, 2, phases.length, 1).setNumberFormat("0"); // Duration
+  sheet.getRange(timelineStartRow, 3, phases.length, 1).setNumberFormat('"$"#,##0'); // Est. Cost
+  sheet.getRange(timelineStartRow, 4, phases.length, 2).setNumberFormat("mm/dd/yyyy"); // Dates
+  sheet.getRange(timelineStartRow, 6, phases.length, 1).setNumberFormat("0"); // Actual Duration
+  sheet.getRange(timelineStartRow, 7, phases.length, 1).setNumberFormat('"$"#,##0'); // Actual Cost
+  sheet.getRange(timelineStartRow, 8, phases.length, 1).setNumberFormat("0"); // Time Variance
+  sheet.getRange(timelineStartRow, 9, phases.length, 1).setNumberFormat('"$"#,##0'); // Cost Variance
+  sheet.getRange(timelineStartRow, 10, phases.length, 1).setNumberFormat("0%"); // % Complete
+
+  // Add data validation for Status column
+  const statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Not Started", "In Progress", "Complete", "Delayed", "On Hold"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(timelineStartRow, 13, phases.length, 1).setDataValidation(statusRule);
+
+  // Add conditional formatting for Status
+  addStatusConditionalFormatting(sheet, timelineStartRow, 13, phases.length);
+
+  row += phases.length + 2;
+
+  // Budget Summary
+  sheet.getRange(row, 1, 1, 3).merge()
+    .setValue("💰 Budget Summary")
+    .setFontWeight("bold")
+    .setFontSize(11)
+    .setBackground("#fff9e6");
+  row++;
+
+  const budgetSummaryData = [
+    ["Total Estimated Budget", `=SUM(C${timelineStartRow}:C${timelineStartRow + phases.length - 1})`, ""],
+    ["Total Actual Spend", `=SUM(G${timelineStartRow}:G${timelineStartRow + phases.length - 1})`, ""],
+    ["Remaining Budget", `=B${row}-B${row + 1}`, ""],
+    ["Budget Variance ($)", `=B${row + 1}-B${row}`, ""],
+    ["Budget Variance (%)", `=IF(B${row}>0,B${row + 3}/B${row},0)`, ""]
+  ];
+
+  sheet.getRange(row, 1, budgetSummaryData.length, 3).setValues(budgetSummaryData);
+  sheet.getRange(row, 1, budgetSummaryData.length, 1).setFontWeight("bold");
+  sheet.getRange(row, 2, budgetSummaryData.length, 1).setNumberFormat('"$"#,##0');
+  sheet.getRange(row + 4, 2).setNumberFormat("0.00%"); // Variance %
+  sheet.getRange(row, 1, budgetSummaryData.length, 3).setBackground("#f9f9f9");
+
+  row += budgetSummaryData.length + 3;
+
+  // === SECTION 2: INSPECTION & PERMIT TRACKER ===
+  sheet.getRange(row, 1, 1, 8).merge()
+    .setValue("📝 Inspection & Permit Tracker")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const permitHeaders = [
+    "Permit Type",
+    "Required?",
+    "Application Date",
+    "Approval Date",
+    "Status",
+    "Inspector/Contact",
+    "Phone/Email",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, permitHeaders.length).setValues([permitHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  const permitTypes = [
+    ["Building Permit", "Yes", "", "", "Not Applied", "", "", ""],
+    ["Electrical Permit", "Yes", "", "", "Not Applied", "", "", ""],
+    ["Plumbing Permit", "Yes", "", "", "Not Applied", "", "", ""],
+    ["HVAC Permit", "Yes", "", "", "Not Applied", "", "", ""],
+    ["Mechanical Permit", "No", "", "", "N/A", "", "", ""],
+    ["Final Inspection", "Yes", "", "", "Not Scheduled", "", "", ""]
+  ];
+
+  const permitStartRow = row;
+  permitTypes.forEach((permit, index) => {
+    sheet.getRange(row + index, 1, 1, permit.length).setValues([permit]);
+  });
+
+  // Format permit section
+  sheet.getRange(permitStartRow, 3, permitTypes.length, 2).setNumberFormat("mm/dd/yyyy"); // Dates
+
+  // Add data validation for Required and Status
+  const yesNoRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Yes", "No"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(permitStartRow, 2, permitTypes.length, 1).setDataValidation(yesNoRule);
+
+  const permitStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Not Applied", "Applied", "Approved", "Rejected", "Not Scheduled", "Scheduled", "Passed", "Failed", "N/A"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(permitStartRow, 5, permitTypes.length, 1).setDataValidation(permitStatusRule);
+
+  row += permitTypes.length + 3;
+
+  // === SECTION 3: MATERIAL & VENDOR TRACKING ===
+  sheet.getRange(row, 1, 1, 9).merge()
+    .setValue("🛠️ Material & Vendor Tracking")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const materialHeaders = [
+    "Item/Service",
+    "Vendor",
+    "Contact",
+    "Order Date",
+    "Delivery Date",
+    "Cost",
+    "Payment Status",
+    "Payment Date",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, materialHeaders.length).setValues([materialHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  // Add 10 blank rows for user to fill
+  const materialStartRow = row;
+  for (let i = 0; i < 10; i++) {
+    sheet.getRange(row + i, 1, 1, 9).setValues([["", "", "", "", "", "", "Pending", "", ""]]);
+  }
+
+  // Format material section
+  sheet.getRange(materialStartRow, 4, 10, 3).setNumberFormat("mm/dd/yyyy"); // Dates
+  sheet.getRange(materialStartRow, 6, 10, 1).setNumberFormat('"$"#,##0'); // Cost
+
+  // Add data validation for Payment Status
+  const paymentStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Pending", "Deposit Paid", "Paid in Full", "Overdue", "N/A"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(materialStartRow, 7, 10, 1).setDataValidation(paymentStatusRule);
+
+  row += 10 + 3;
+
+  // === SECTION 4: CRITICAL MILESTONES & ALERTS ===
+  sheet.getRange(row, 1, 1, 6).merge()
+    .setValue("⚠️ Critical Milestones & Alerts")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const milestoneHeaders = [
+    "Milestone",
+    "Target Date",
+    "Actual Date",
+    "Status",
+    "Priority",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, milestoneHeaders.length).setValues([milestoneHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  const milestones = [
+    ["Project Start", "", "", "Pending", "High", ""],
+    ["All Permits Approved", "", "", "Pending", "High", ""],
+    ["Structural Work Complete", "", "", "Pending", "High", ""],
+    ["Rough Inspections Passed", "", "", "Pending", "High", ""],
+    ["Final Inspection Passed", "", "", "Pending", "High", ""],
+    ["Project Complete", "", "", "Pending", "High", ""]
+  ];
+
+  const milestoneStartRow = row;
+  milestones.forEach((milestone, index) => {
+    sheet.getRange(row + index, 1, 1, milestone.length).setValues([milestone]);
+  });
+
+  // Format milestone section
+  sheet.getRange(milestoneStartRow, 2, milestones.length, 2).setNumberFormat("mm/dd/yyyy"); // Dates
+
+  // Add data validation
+  const milestoneStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Pending", "In Progress", "Complete", "Delayed", "Blocked"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(milestoneStartRow, 4, milestones.length, 1).setDataValidation(milestoneStatusRule);
+
+  const priorityRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["High", "Medium", "Low"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(milestoneStartRow, 5, milestones.length, 1).setDataValidation(priorityRule);
+
+  // Add conditional formatting for Priority
+  addPriorityConditionalFormatting(sheet, milestoneStartRow, 5, milestones.length);
+
+  row += milestones.length + 3;
+
+  // === SECTION 5: DELAYS & ISSUES TRACKER ===
+  sheet.getRange(row, 1, 1, 8).merge()
+    .setValue("⏰ Delays & Issues Tracker")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const delayHeaders = [
+    "Date Reported",
+    "Issue/Delay Type",
+    "Description",
+    "Days Delayed",
+    "Cost Impact",
+    "Status",
+    "Resolution Date",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, delayHeaders.length).setValues([delayHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  // Add 5 blank rows for delays
+  const delayStartRow = row;
+  for (let i = 0; i < 5; i++) {
+    sheet.getRange(row + i, 1, 1, 8).setValues([["", "", "", "", "", "Open", "", ""]]);
+  }
+
+  // Format delays section
+  sheet.getRange(delayStartRow, 1, 5, 1).setNumberFormat("mm/dd/yyyy"); // Date Reported
+  sheet.getRange(delayStartRow, 4, 5, 1).setNumberFormat("0"); // Days Delayed
+  sheet.getRange(delayStartRow, 5, 5, 1).setNumberFormat('"$"#,##0'); // Cost Impact
+  sheet.getRange(delayStartRow, 7, 5, 1).setNumberFormat("mm/dd/yyyy"); // Resolution Date
+
+  // Add data validation for Issue Type and Status
+  const issueTypeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Weather", "Materials Delay", "Contractor Issue", "Permit Delay", "Inspection Failed", "Scope Change", "Other"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(delayStartRow, 2, 5, 1).setDataValidation(issueTypeRule);
+
+  const delayStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Open", "In Progress", "Resolved", "Escalated"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(delayStartRow, 6, 5, 1).setDataValidation(delayStatusRule);
+
+  row += 5 + 3;
+
+  // === SECTION 6: CONTRACTOR PERFORMANCE TRACKER ===
+  sheet.getRange(row, 1, 1, 8).merge()
+    .setValue("⭐ Contractor Performance Tracker")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const contractorHeaders = [
+    "Contractor Name",
+    "Trade/Specialty",
+    "Contact",
+    "On-Time Rating (1-5)",
+    "Quality Rating (1-5)",
+    "Budget Adherence (1-5)",
+    "Overall Rating",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, contractorHeaders.length).setValues([contractorHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  // Add 5 blank rows for contractors
+  const contractorStartRow = row;
+  for (let i = 0; i < 5; i++) {
+    const currentRow = row + i;
+    sheet.getRange(currentRow, 1, 1, 8).setValues([["", "", "", "", "", "", `=IF(AND(D${currentRow}<>"",E${currentRow}<>"",F${currentRow}<>""),(D${currentRow}+E${currentRow}+F${currentRow})/3,"")`, ""]]);
+  }
+
+  // Format contractor section
+  sheet.getRange(contractorStartRow, 4, 5, 4).setNumberFormat("0.0"); // Ratings
+
+  // Add data validation for ratings
+  const ratingRule = SpreadsheetApp.newDataValidation()
+    .requireNumberBetween(1, 5)
+    .setAllowInvalid(false)
+    .setHelpText("Enter a rating from 1 (poor) to 5 (excellent)")
+    .build();
+  sheet.getRange(contractorStartRow, 4, 5, 3).setDataValidation(ratingRule);
+
+  // Add conditional formatting for ratings
+  addRatingConditionalFormatting(sheet, contractorStartRow, 7, 5);
+
+  row += 5 + 3;
+
+  // === SECTION 7: CHANGE ORDERS TRACKER ===
+  sheet.getRange(row, 1, 1, 9).merge()
+    .setValue("📝 Change Orders Tracker")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  const changeOrderHeaders = [
+    "CO #",
+    "Date",
+    "Description",
+    "Reason",
+    "Cost Impact",
+    "Time Impact (days)",
+    "Approval Status",
+    "Approved By",
+    "Notes"
+  ];
+
+  sheet.getRange(row, 1, 1, changeOrderHeaders.length).setValues([changeOrderHeaders])
+    .setFontWeight("bold")
+    .setBackground("#d9e2f3")
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  row++;
+
+  // Add 5 blank rows for change orders
+  const changeOrderStartRow = row;
+  for (let i = 0; i < 5; i++) {
+    sheet.getRange(row + i, 1, 1, 9).setValues([[i + 1, "", "", "", "", "", "Pending", "", ""]]);
+  }
+
+  // Format change orders section
+  sheet.getRange(changeOrderStartRow, 2, 5, 1).setNumberFormat("mm/dd/yyyy"); // Date
+  sheet.getRange(changeOrderStartRow, 5, 5, 1).setNumberFormat('"$"#,##0'); // Cost Impact
+  sheet.getRange(changeOrderStartRow, 6, 5, 1).setNumberFormat("0"); // Time Impact
+
+  // Add data validation for Approval Status
+  const approvalStatusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Pending", "Approved", "Rejected", "Under Review"], true)
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(changeOrderStartRow, 7, 5, 1).setDataValidation(approvalStatusRule);
+
+  row += 5 + 3;
+
+  // === SECTION 8: PROJECT SUMMARY & ALERTS ===
+  sheet.getRange(row, 1, 1, 6).merge()
+    .setValue("📊 Project Summary & Alerts")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row += 2;
+
+  // Calculate summary metrics
+  const summaryData = [
+    ["Overall Project Progress", `=AVERAGE(J${timelineStartRow}:J${timelineStartRow + phases.length - 1})`, ""],
+    ["Total Delays (Days)", `=SUM(D${delayStartRow}:D${delayStartRow + 4})`, ""],
+    ["Total Change Order Cost", `=SUM(E${changeOrderStartRow}:E${changeOrderStartRow + 4})`, ""],
+    ["Average Contractor Rating", `=AVERAGE(G${contractorStartRow}:G${contractorStartRow + 4})`, ""],
+    ["", "", ""],
+    ["⚠️ ALERTS", "", ""],
+    ["Budget Status", `=IF(B${timelineStartRow + phases.length + 3}>B${timelineStartRow + phases.length + 2},"⚠️ OVER BUDGET","✅ On Budget")`, ""],
+    ["Schedule Status", `=IF(B${timelineStartRow + phases.length + 1}>B${timelineStartRow + phases.length},"⚠️ BEHIND SCHEDULE","✅ On Schedule")`, ""],
+    ["Open Issues", `=COUNTIF(F${delayStartRow}:F${delayStartRow + 4},"Open")`, ""],
+    ["Pending Change Orders", `=COUNTIF(G${changeOrderStartRow}:G${changeOrderStartRow + 4},"Pending")`, ""]
+  ];
+
+  const summaryStartRow = row;
+  sheet.getRange(row, 1, summaryData.length, 3).setValues(summaryData);
+  sheet.getRange(row, 1, summaryData.length, 1).setFontWeight("bold");
+  sheet.getRange(row, 2, summaryData.length, 1).setHorizontalAlignment("right");
+
+  // Format summary section
+  sheet.getRange(summaryStartRow, 2).setNumberFormat("0.0%"); // Progress
+  sheet.getRange(summaryStartRow + 1, 2).setNumberFormat("0"); // Days
+  sheet.getRange(summaryStartRow + 2, 2).setNumberFormat('"$"#,##0'); // Cost
+  sheet.getRange(summaryStartRow + 3, 2).setNumberFormat("0.0"); // Rating
+
+  // Highlight alerts section
+  sheet.getRange(summaryStartRow + 5, 1, 5, 3).setBackground("#fff9e6");
+  sheet.getRange(summaryStartRow + 5, 1).setFontWeight("bold").setFontSize(11);
+
+  row += summaryData.length + 3;
+
+  // === INSTRUCTIONS ===
+  sheet.getRange(row, 1, 1, 14).merge()
+    .setValue("💡 Instructions: Update dates, costs, and status as your project progresses. Use dropdowns for consistent data entry. The Project Summary section automatically calculates key metrics and alerts.")
+    .setFontStyle("italic")
+    .setFontColor("#666666")
+    .setFontSize(9)
+    .setWrap(true);
+
+  // Set column widths
+  sheet.setColumnWidth(1, 180); // Phase/Item
+  sheet.setColumnWidth(2, 100); // Duration/Required
+  sheet.setColumnWidth(3, 100); // Cost/Date
+  sheet.setColumnWidth(4, 100); // Date
+  sheet.setColumnWidth(5, 100); // Date
+  sheet.setColumnWidth(6, 100); // Duration/Cost
+  sheet.setColumnWidth(7, 100); // Cost/Status
+  sheet.setColumnWidth(8, 100); // Variance
+  sheet.setColumnWidth(9, 100); // Variance
+  sheet.setColumnWidth(10, 80); // % Complete
+  sheet.setColumnWidth(11, 120); // Assigned To
+  sheet.setColumnWidth(12, 120); // Contact
+  sheet.setColumnWidth(13, 100); // Status
+  sheet.setColumnWidth(14, 150); // Notes
+
+  // Freeze header rows
+  sheet.setFrozenRows(5);
+
+  Logger.log("✅ Project Tracker generated successfully");
+}
+
+/**
+ * Add conditional formatting for Status column
+ */
+function addStatusConditionalFormatting(sheet, startRow, column, numRows) {
+  const range = sheet.getRange(startRow, column, numRows, 1);
+
+  // Complete - Green
+  const completeRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Complete")
+    .setBackground("#d4edda")
+    .setFontColor("#155724")
+    .setRanges([range])
+    .build();
+
+  // In Progress - Yellow
+  const inProgressRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("In Progress")
+    .setBackground("#fff3cd")
+    .setFontColor("#856404")
+    .setRanges([range])
+    .build();
+
+  // Delayed - Red
+  const delayedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Delayed")
+    .setBackground("#f8d7da")
+    .setFontColor("#721c24")
+    .setRanges([range])
+    .build();
+
+  // Not Started - Gray
+  const notStartedRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Not Started")
+    .setBackground("#e2e3e5")
+    .setFontColor("#383d41")
+    .setRanges([range])
+    .build();
+
+  const rules = sheet.getConditionalFormatRules();
+  rules.push(completeRule, inProgressRule, delayedRule, notStartedRule);
+  sheet.setConditionalFormatRules(rules);
+}
+
+/**
+ * Add conditional formatting for Priority column
+ */
+function addPriorityConditionalFormatting(sheet, startRow, column, numRows) {
+  const range = sheet.getRange(startRow, column, numRows, 1);
+
+  // High - Red
+  const highRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("High")
+    .setBackground("#f8d7da")
+    .setFontColor("#721c24")
+    .setRanges([range])
+    .build();
+
+  // Medium - Yellow
+  const mediumRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Medium")
+    .setBackground("#fff3cd")
+    .setFontColor("#856404")
+    .setRanges([range])
+    .build();
+
+  // Low - Green
+  const lowRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenTextEqualTo("Low")
+    .setBackground("#d4edda")
+    .setFontColor("#155724")
+    .setRanges([range])
+    .build();
+
+  const rules = sheet.getConditionalFormatRules();
+  rules.push(highRule, mediumRule, lowRule);
+  sheet.setConditionalFormatRules(rules);
+}
+
+/**
+ * Add conditional formatting for Rating column (1-5 scale)
+ */
+function addRatingConditionalFormatting(sheet, startRow, column, numRows) {
+  const range = sheet.getRange(startRow, column, numRows, 1);
+
+  // Excellent (4.5-5.0) - Green
+  const excellentRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenNumberGreaterThanOrEqualTo(4.5)
+    .setBackground("#d4edda")
+    .setFontColor("#155724")
+    .setRanges([range])
+    .build();
+
+  // Good (3.5-4.4) - Light Green
+  const goodRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenNumberBetween(3.5, 4.4)
+    .setBackground("#d1f2eb")
+    .setFontColor("#0c5460")
+    .setRanges([range])
+    .build();
+
+  // Average (2.5-3.4) - Yellow
+  const averageRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenNumberBetween(2.5, 3.4)
+    .setBackground("#fff3cd")
+    .setFontColor("#856404")
+    .setRanges([range])
+    .build();
+
+  // Below Average (1.5-2.4) - Orange
+  const belowAverageRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenNumberBetween(1.5, 2.4)
+    .setBackground("#ffe5cc")
+    .setFontColor("#cc5200")
+    .setRanges([range])
+    .build();
+
+  // Poor (1.0-1.4) - Red
+  const poorRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenNumberLessThanOrEqualTo(1.4)
+    .setBackground("#f8d7da")
+    .setFontColor("#721c24")
+    .setRanges([range])
+    .build();
+
+  const rules = sheet.getConditionalFormatRules();
+  rules.push(excellentRule, goodRule, averageRule, belowAverageRule, poorRule);
+  sheet.setConditionalFormatRules(rules);
+}
+
+/**
+ * Delete Project Tracker tab (when switching to Simple Mode)
+ */
+function deleteProjectTracker() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Project Tracker");
+
+  if (sheet) {
+    // Save data to properties before deleting (for potential restoration)
+    saveProjectTrackerData(sheet);
+    ss.deleteSheet(sheet);
+    Logger.log("✅ Project Tracker tab deleted (Simple Mode)");
+  }
+}
+
+/**
+ * Save Project Tracker data to document properties
+ */
+function saveProjectTrackerData(sheet) {
+  try {
+    const data = sheet.getDataRange().getValues();
+    const docProps = PropertiesService.getDocumentProperties();
+    docProps.setProperty('projectTrackerBackup', JSON.stringify(data));
+    Logger.log("✅ Project Tracker data backed up");
+  } catch (e) {
+    Logger.log("⚠️ Could not backup Project Tracker data: " + e);
+  }
+}
+
+/**
+ * Restore Project Tracker data from document properties
+ */
+function restoreProjectTrackerData(sheet) {
+  try {
+    const docProps = PropertiesService.getDocumentProperties();
+    const backup = docProps.getProperty('projectTrackerBackup');
+
+    if (backup) {
+      const data = JSON.parse(backup);
+      if (data && data.length > 0) {
+        sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+        Logger.log("✅ Project Tracker data restored");
+        return true;
+      }
+    }
+  } catch (e) {
+    Logger.log("⚠️ Could not restore Project Tracker data: " + e);
+  }
+  return false;
 }
