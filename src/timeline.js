@@ -193,9 +193,29 @@ function generateProfitSplitAnalysis() {
     return;
   }
 
-  // Get net profit from flip analysis
-  // This assumes the net profit is in a known location
-  const netProfit = flipSheet.getRange("B30").getValue() || 0;
+  // Get net profit from flip analysis by searching for the label
+  let netProfit = 0;
+  try {
+    const data = flipSheet.getDataRange().getValues();
+    for (let i = 0; i < data.length; i++) {
+      const label = data[i][0] ? data[i][0].toString().trim() : "";
+      if (label.includes("Net Profit") && label.includes("$")) {
+        const value = data[i][1];
+        if (value !== null && value !== undefined && value !== "") {
+          netProfit = parseFloat(value) || 0;
+          Logger.log("Found Net Profit: " + netProfit);
+          break;
+        }
+      }
+    }
+
+    if (netProfit === 0) {
+      Logger.log("⚠️ Warning: Net Profit not found in Flip Analysis sheet, using 0");
+    }
+  } catch (error) {
+    Logger.log("⚠️ Error finding net profit: " + error.message);
+    netProfit = 0;
+  }
 
   // Find where to insert
   let row = flipSheet.getLastRow() + 3;
