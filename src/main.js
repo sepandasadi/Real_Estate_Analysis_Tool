@@ -5,43 +5,53 @@
 //  */
 
 function onOpen() {
+  // Initialize the summary panel on spreadsheet open
+  try {
+    createInputsSummary();
+    Logger.log("✅ Summary panel initialized on open");
+  } catch (e) {
+    Logger.log("⚠️ Could not initialize summary panel: " + e);
+  }
+
   const ui = SpreadsheetApp.getUi();
   ui.createMenu("REI Tools")
-    .addItem("📊 Dashboard", "goToDashboard")
-    .addSeparator()
     .addItem("Open Sidebar", "openSidebar")
     .addSeparator()
     .addItem("Run Full Analysis", "menuRunAnalysis")
     .addItem("🔄 Refresh Comps (Force)", "refreshComps")
+    .addItem("🔄 Refresh Summary Panel", "createInputsSummary")
     .addSeparator()
     .addItem("🔄 Toggle Simple/Advanced Mode", "toggleAnalysisMode")
-    .addSeparator()
-    .addItem("Format all tabs", "formatAllTabs")
-    .addSeparator()
-    .addSubMenu(ui.createMenu("Amortization")
-      .addItem("First Year (12 months)", "generateFirstYearAmortization")
-      .addItem("Full Loan Term", "generateFullAmortizationSchedule"))
     .addSeparator()
     .addSubMenu(ui.createMenu("Advanced Tools")
       .addItem("📊 Interactive Scenario Analyzer", "showScenarioAnalyzer")
       .addItem("📈 Generate Charts & Visualizations", "menuRegenerateCharts")
-      .addItem("Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
-      .addItem("Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
-      .addItem("Flip Enhancements (Timeline, Partners, Renovation)", "generateFlipEnhancements")
-      .addItem("🏗️ Project Tracker (Advanced Mode Only)", "generateProjectTracker")
+      .addSeparator()
+      .addSubMenu(ui.createMenu("🏗️ Project Tracker (Advanced Mode Only)")
+        .addItem("Generate Project Tracker Tab", "generateProjectTracker")
+        .addItem("Clear Project Tracker Tab", "clearProjectTracker"))
+      .addSubMenu(ui.createMenu("🤝 Partnership Management (Advanced Mode Only)")
+        .addItem("Generate Partnership Tab", "generatePartnershipManagement")
+        .addItem("Calculate Partnership IRR", "updatePartnershipIRR")
+        .addItem("Clear Partnership Tab", "clearPartnershipManagement"))
+      .addSeparator()
       .addItem("🏠 Auto-Populate Expenses (Tax & Insurance)", "autoPopulateExpenses")
       .addItem("📊 Compare State Expenses", "compareStateExpenses")
-      .addItem("🔍 Filter Comps (Date, Distance, Type)", "createFilteredCompsView"))
-    .addSeparator()
-    .addSubMenu(ui.createMenu("Dashboard & Insights")
-      .addItem("📊 View Dashboard", "goToDashboard")
-      .addItem("🔄 Update Dashboard", "updateDashboard")
-      .addItem("🧹 Clear History", "clearAnalysisHistory"))
-    .addSeparator()
-    .addSubMenu(ui.createMenu("Protect/Unlock")
-      .addItem("Protect (Warning-only)", "protectSheetsWarning")
-      .addItem("Protect (Hard Lock)", "protectSheetsLock")
-      .addItem("Unlock", "unprotectAll"))
+      .addItem("🔍 Filter Comps (Date, Distance, Type)", "createFilteredCompsView")
+      .addItem("💰 Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
+      .addItem("📉 Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
+      .addSeparator()
+      .addSubMenu(ui.createMenu("Amortization")
+        .addItem("First Year (12 months)", "generateFirstYearAmortization")
+        .addItem("Full Loan Term", "generateFullAmortizationSchedule"))
+      .addSeparator()
+      .addSubMenu(ui.createMenu("Protect/Unlock")
+        .addItem("Protect (Warning-only)", "protectSheetsWarning")
+        .addItem("Protect (Hard Lock)", "protectSheetsLock")
+        .addItem("Unlock", "unprotectAll"))
+      .addSeparator()
+      .addItem("Format all tabs", "formatAllTabs")
+    )
     .addSeparator()
     .addItem("🧹 Clear Sheets", "clearSheets")
     .addToUi();
@@ -258,15 +268,15 @@ function runAnalysis(data) {
       });
     }
 
-    // Update dashboard with new data
-    updateDashboard();
+    // Update inputs summary panel with new data
+    updateInputsSummary();
 
     Logger.log("✅ Phase 4 scoring, alerts, and history saved");
   } catch (e) {
     Logger.log("⚠️ Phase 4 integration error: " + e);
   }
 
-  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.\n\nIncludes: Flip & Rental Analysis, Sensitivity, Amortization, Tax Benefits, Advanced Metrics, Flip Enhancements, Charts & Visualizations, Scoring, and Alerts.\n\n📊 View the Dashboard for a summary of all analyses.");
+  SpreadsheetApp.getUi().alert("✅ Analysis complete! All tabs updated.\n\nIncludes: Flip & Rental Analysis, Sensitivity, Amortization, Tax Benefits, Advanced Metrics, Flip Enhancements, Charts & Visualizations, Scoring, and Alerts.\n\nCheck the Inputs tab for a quick summary of results.");
 }
 
 /**
@@ -354,7 +364,6 @@ function refreshComps() {
 function clearSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const tabsToClear = [
-    "Dashboard",
     "Flip Analysis",
     "Rental Analysis",
     "Flip Sensitivity (ARV vs Rehab)",
@@ -366,7 +375,8 @@ function clearSheets() {
     "Renovation Timeline",
     "Filtered Comps",
     "Custom Scenarios",
-    "Monte Carlo Analysis"
+    "Monte Carlo Analysis",
+    "Partnership Management"
   ];
 
   tabsToClear.forEach(name => {
@@ -451,21 +461,17 @@ function clearSheets() {
   const inputs = ss.getSheetByName("Inputs");
   if (inputs) {
     inputs.getRange("B2:B28").clearContent();
+    // Clear summary panel
+    clearInputsSummary();
   }
 
-  // Switch back to Simple Mode FIRST (before recreating dashboard)
+  // Switch back to Simple Mode
   setAnalysisMode('Simple');
 
   // Hide advanced tabs
   updateTabVisibility('Simple');
 
-  // Recreate Dashboard with proper styling (will now read Simple mode)
-  const dashboard = ss.getSheetByName("Dashboard");
-  if (dashboard) {
-    createDashboard();
-  }
-
-  SpreadsheetApp.getUi().alert("🧹 All analysis sheets completely cleared!\n\nRemoved: Content, formatting, charts, borders, backgrounds, and conditional formatting.\n\nCleared: Dashboard, Analysis tabs, History, and all enhancement tabs.\n\nMode switched to Simple Mode with advanced tabs hidden.\n\nDashboard has been recreated with proper styling.");
+  SpreadsheetApp.getUi().alert("🧹 All analysis sheets completely cleared!\n\nRemoved: Content, formatting, charts, borders, backgrounds, and conditional formatting.\n\nCleared: Analysis tabs, History, and all enhancement tabs.\n\nMode switched to Simple Mode with advanced tabs hidden.");
 }
 
 // ============================================================================

@@ -72,20 +72,33 @@ function generateFlipSensitivity(arv, totalRehab, purchasePrice, closingCosts, h
 
   sheet.clearContents();
 
-  // Title
-  sheet.getRange("A1").setValue("Flip Sensitivity (ARV vs Rehab)").setFontWeight("bold").setFontSize(14);
-  sheet.getRange("A1").setBackground("#e8f0fe");
-  sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString());
+  // Title and timestamp - using standardized header formatting with merged cells
+  const titleRange = sheet.getRange("A1:F1");
+  titleRange.merge();
+  titleRange.setValue("Flip Sensitivity (ARV vs Rehab)");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
+  const timestampRange = sheet.getRange("A2:F2");
+  timestampRange.merge();
+  timestampRange.setValue("Generated: " + new Date().toLocaleString())
+    .setFontSize(9)
+    .setFontColor("#666666");
 
   let row = 4;
 
   // Labeling
-  sheet.getRange(row, 1).setValue("ARV ↓ / Rehab →").setFontWeight("bold");
+  sheet.getRange(row, 1).setValue("ARV ↓ / Rehab →")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe");
   sheet.getRange(row, 2, 1, 5)
     .setValues([["-10%", "-5%", "Base", "+5%", "+10%"]])
     .setFontWeight("bold")
     .setBackground("#d9e2f3")
-    .setBorder(true, true, true, true, true, true);
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
   // 5×5 matrix values
@@ -116,20 +129,24 @@ function generateFlipSensitivity(arv, totalRehab, purchasePrice, closingCosts, h
 
   row += arvChanges.length + 2;
 
-  sheet.getRange(row, 1).setValue("💡 Higher ARV and lower rehab = better profit margin.")
-    .setFontStyle("italic").setFontColor("#666");
-  sheet.autoResizeColumns(1, 6);
+  sheet.getRange(row, 1, 1, 6).merge()
+    .setValue("💡 Higher ARV and lower rehab = better profit margin.")
+    .setFontStyle("italic")
+    .setFontColor("#666666")
+    .setFontSize(9);
 
   // --- Format profit grid as currency ---
   const currencyNoDecimal = '"$"#,##0';
   const lastRow = sheet.getLastRow();
   sheet.getRange("B5:F" + lastRow).setNumberFormat(currencyNoDecimal);
 
-  const startColumn = 2; // Column B
-  const numberOfColumns = 5; // Columns B, C, D
-  const widthInPixels = 150;
-  sheet.setColumnWidths(startColumn, numberOfColumns, widthInPixels);
-
+  // Set column widths
+  sheet.setColumnWidth(1, 150);  // ARV column
+  sheet.setColumnWidth(2, 120);  // -10%
+  sheet.setColumnWidth(3, 120);  // -5%
+  sheet.setColumnWidth(4, 120);  // Base
+  sheet.setColumnWidth(5, 120);  // +5%
+  sheet.setColumnWidth(6, 120);  // +10%
 
   Logger.log("✅ Flip Sensitivity Matrix generated successfully.");
 }

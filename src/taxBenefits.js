@@ -184,16 +184,29 @@ function generateTaxBenefitsAnalysis() {
 
   sheet.clearContents();
 
-  // Header
-  sheet.getRange("A1").setValue("Tax Benefits & Depreciation Analysis")
-    .setFontWeight("bold").setFontSize(14);
-  sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString());
+  // Title and timestamp - using standardized header formatting with merged cells
+  const titleRange = sheet.getRange("A1:B1");
+  titleRange.merge();
+  titleRange.setValue("Tax Benefits & Depreciation Analysis");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
+  const timestampRange = sheet.getRange("A2:B2");
+  timestampRange.merge();
+  timestampRange.setValue("Generated: " + new Date().toLocaleString())
+    .setFontSize(9)
+    .setFontColor("#666666");
 
   let row = 4;
 
   // Section 1: Annual Tax Benefits
-  sheet.getRange(row, 1).setValue("Annual Tax Benefits")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Annual Tax Benefits")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const taxBenefits = calculateTaxBenefits();
@@ -222,8 +235,12 @@ function generateTaxBenefitsAnalysis() {
   row += benefitsData.length + 2;
 
   // Section 2: Capital Gains Analysis (5-year hold)
-  sheet.getRange(row, 1).setValue("Capital Gains Analysis (5-Year Hold)")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Capital Gains Analysis (5-Year Hold)")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const capitalGains = calculateCapitalGains({ yearsHeld: 5 });
@@ -256,8 +273,12 @@ function generateTaxBenefitsAnalysis() {
   row += capitalGainsData.length + 2;
 
   // Section 3: 1031 Exchange Scenario
-  sheet.getRange(row, 1).setValue("1031 Exchange Scenario")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("1031 Exchange Scenario")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const exchange1031 = calculate1031Exchange();
@@ -289,8 +310,9 @@ function generateTaxBenefitsAnalysis() {
     recCell.setBackground("#f8d7da").setFontColor("#721c24");
   }
 
-  // Auto-resize columns
-  sheet.autoResizeColumns(1, 2);
+  // Set column widths
+  sheet.setColumnWidth(1, 250);
+  sheet.setColumnWidth(2, 150);
 
   Logger.log("✅ Tax Benefits Analysis generated");
 }
