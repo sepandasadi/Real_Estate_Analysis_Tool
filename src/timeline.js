@@ -278,111 +278,17 @@ function generateProfitSplitAnalysis() {
 }
 
 /**
- * Generate renovation timeline tracker
- * Phase 3.3 Enhancement
- */
-function generateRenovationTimeline() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const flipSheet = ss.getSheetByName("Flip Analysis");
-
-  if (!flipSheet) {
-    Logger.log("❌ Flip Analysis sheet not found");
-    return;
-  }
-
-  const monthsToFlip = getField("monthsToFlip", 6);
-
-  // Find where to insert
-  let row = flipSheet.getLastRow() + 3;
-
-  // Add section header
-  flipSheet.getRange(row, 1).setValue("Renovation Timeline Tracker")
-    .setFontWeight("bold").setFontSize(12).setBackground("#e8f0fe");
-  row += 2;
-
-  // Add instructions
-  flipSheet.getRange(row, 1, 1, 6).merge()
-    .setValue("Track your renovation phases below. Enter estimated duration for each phase.")
-    .setFontStyle("italic").setFontColor("#666666");
-  row += 2;
-
-  // Add column headers
-  const headers = ["Phase", "Duration (weeks)", "Start Week", "End Week", "Status", "Notes"];
-  flipSheet.getRange(row, 1, 1, headers.length).setValues([headers])
-    .setFontWeight("bold").setBackground("#d9e2f3")
-    .setBorder(true, true, true, true, true, true);
-  row++;
-
-  // Add common renovation phases
-  const phases = [
-    ["Demo & Cleanup", 1, 1, "=B" + row + "+C" + row, "Not Started", ""],
-    ["Framing & Structural", 2, "=D" + (row), "=B" + (row + 1) + "+C" + (row + 1), "Not Started", ""],
-    ["Plumbing & Electrical", 2, "=D" + (row + 1), "=B" + (row + 2) + "+C" + (row + 2), "Not Started", ""],
-    ["HVAC", 1, "=D" + (row + 2), "=B" + (row + 3) + "+C" + (row + 3), "Not Started", ""],
-    ["Drywall & Insulation", 2, "=D" + (row + 3), "=B" + (row + 4) + "+C" + (row + 4), "Not Started", ""],
-    ["Flooring", 1, "=D" + (row + 4), "=B" + (row + 5) + "+C" + (row + 5), "Not Started", ""],
-    ["Kitchen & Bath", 2, "=D" + (row + 5), "=B" + (row + 6) + "+C" + (row + 6), "Not Started", ""],
-    ["Paint & Finish", 1, "=D" + (row + 6), "=B" + (row + 7) + "+C" + (row + 7), "Not Started", ""],
-    ["Landscaping & Exterior", 1, "=D" + (row + 7), "=B" + (row + 8) + "+C" + (row + 8), "Not Started", ""],
-    ["Final Cleanup & Staging", 1, "=D" + (row + 8), "=B" + (row + 9) + "+C" + (row + 9), "Not Started", ""]
-  ];
-
-  const phaseStartRow = row;
-  phases.forEach((phase, index) => {
-    flipSheet.getRange(row + index, 1, 1, phase.length).setValues([phase]);
-  });
-
-  // Apply number formatting to Duration, Start Week, and End Week columns
-  flipSheet.getRange(phaseStartRow, 2, phases.length, 1).setNumberFormat("0"); // Duration (weeks)
-  flipSheet.getRange(phaseStartRow, 3, phases.length, 1).setNumberFormat("0"); // Start Week
-  flipSheet.getRange(phaseStartRow, 4, phases.length, 1).setNumberFormat("0"); // End Week
-
-  row += phases.length + 2;
-
-  // Add total duration
-  flipSheet.getRange(row, 1).setValue("Total Duration (weeks):");
-  flipSheet.getRange(row, 2).setFormula(`=SUM(B${row - phases.length}:B${row - 1})`);
-  flipSheet.getRange(row, 1, 1, 2).setFontWeight("bold").setBackground("#f2f2f2");
-
-  row++;
-
-  // Add comparison to target
-  const targetWeeks = monthsToFlip * 4.33; // Average weeks per month
-  flipSheet.getRange(row, 1).setValue("Target Duration (weeks):");
-  flipSheet.getRange(row, 2).setValue(Math.round(targetWeeks));
-  flipSheet.getRange(row, 1, 1, 2).setFontWeight("bold");
-
-  row++;
-
-  // Add variance
-  flipSheet.getRange(row, 1).setValue("Variance:");
-  flipSheet.getRange(row, 2).setFormula(`=B${row - 2}-B${row - 1}`);
-  flipSheet.getRange(row, 1, 1, 2).setFontWeight("bold");
-
-  // Add conditional formatting for variance
-  const varianceCell = flipSheet.getRange(row, 2);
-  varianceCell.setNumberFormat("0");
-
-  row += 2;
-
-  // Add status legend
-  flipSheet.getRange(row, 1).setValue("Status Options: Not Started | In Progress | Complete | Delayed")
-    .setFontStyle("italic").setFontColor("#666666").setFontSize(9);
-
-  Logger.log("✅ Renovation timeline tracker generated");
-}
-
-/**
  * Generate all Phase 3.3 enhancements in Flip Analysis
  * Call this from the menu or after flip analysis is generated
+ *
+ * NOTE: Renovation Timeline Tracker removed - use Project Tracker (Advanced Mode) instead
+ * NOTE: Partner Profit Split removed - use Partnership Management (Advanced Mode) instead
  */
 function generateFlipEnhancements() {
   try {
     generateFlipTimeline();
-    generateProfitSplitAnalysis();
-    generateRenovationTimeline();
 
-    SpreadsheetApp.getUi().alert("✅ Flip analysis enhancements added!\n\n- Monthly holding cost timeline\n- Partner profit split calculator\n- Renovation timeline tracker");
+    SpreadsheetApp.getUi().alert("✅ Flip analysis enhancements added!\n\n- Monthly holding cost timeline\n\nNote: For comprehensive renovation tracking and partnership management, use Advanced Mode tools.");
   } catch (error) {
     Logger.log("❌ Error generating flip enhancements: " + error);
     SpreadsheetApp.getUi().alert("⚠️ Error generating enhancements: " + error.message);
@@ -1120,4 +1026,75 @@ function restoreProjectTrackerData(sheet) {
     Logger.log("⚠️ Could not restore Project Tracker data: " + e);
   }
   return false;
+}
+
+/**
+ * Clear Project Tracker tab only
+ * Removes all content, formatting, charts, borders, and background colors
+ */
+function clearProjectTracker() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Project Tracker");
+
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert("⚠️ Project Tracker tab not found.\n\nPlease generate the Project Tracker tab first.");
+    return;
+  }
+
+  // Remove all charts
+  const charts = sheet.getCharts();
+  charts.forEach(chart => {
+    sheet.removeChart(chart);
+  });
+
+  // Clear all content and formatting
+  sheet.clear();
+
+  // Get the entire data range and clear all formatting
+  const maxRows = sheet.getMaxRows();
+  const maxCols = sheet.getMaxColumns();
+  const fullRange = sheet.getRange(1, 1, maxRows, maxCols);
+
+  // Clear all formatting
+  fullRange.clearFormat();
+  fullRange.clearNote();
+  fullRange.clearDataValidations();
+
+  // Remove all borders
+  fullRange.setBorder(false, false, false, false, false, false);
+
+  // Reset background to white
+  fullRange.setBackground('#ffffff');
+
+  // Reset font to default
+  fullRange.setFontColor('#000000');
+  fullRange.setFontFamily('Arial');
+  fullRange.setFontSize(10);
+  fullRange.setFontWeight('normal');
+  fullRange.setFontStyle('normal');
+
+  // Reset alignment
+  fullRange.setHorizontalAlignment('left');
+  fullRange.setVerticalAlignment('bottom');
+
+  // Remove any conditional formatting rules
+  sheet.setConditionalFormatRules([]);
+
+  // Reset column widths to default (100 pixels)
+  for (let i = 1; i <= Math.min(maxCols, 20); i++) {
+    sheet.setColumnWidth(i, 100);
+  }
+
+  // Reset row heights to default (21 pixels)
+  for (let i = 1; i <= Math.min(maxRows, 100); i++) {
+    sheet.setRowHeight(i, 21);
+  }
+
+  // Unfreeze rows and columns
+  sheet.setFrozenRows(0);
+  sheet.setFrozenColumns(0);
+
+  Logger.log("✅ Project Tracker tab cleared");
+
+  SpreadsheetApp.getUi().alert("🧹 Project Tracker tab cleared!\n\nAll content, formatting, charts, borders, and backgrounds have been removed.\n\nYou can regenerate the tab using:\nREI Tools → Advanced Tools → Project Tracker → Generate Project Tracker Tab");
 }

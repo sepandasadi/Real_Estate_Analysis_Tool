@@ -23,12 +23,13 @@ function generateFlipAnalysis(comps) {
 
   sheet.clearContents();
 
-  // Title and timestamp
-  sheet.getRange("A1").setValue("Fix & Flip Analysis")
-    .setFontWeight("bold")
-    .setFontSize(16)
-    .setBackground("#1a73e8")
-    .setFontColor("white");
+  // Title and timestamp - using standardized header formatting
+  const titleRange = sheet.getRange("A1");
+  titleRange.setValue("Fix & Flip Analysis");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
   sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString())
     .setFontSize(9)
     .setFontColor("#666666");
@@ -340,12 +341,13 @@ function generateRentalAnalysis(comps) {
 
   sheet.clearContents();
 
-  // Title and timestamp
-  sheet.getRange("A1").setValue("Rental Analysis Report")
-    .setFontWeight("bold")
-    .setFontSize(16)
-    .setBackground("#1a73e8")
-    .setFontColor("white");
+  // Title and timestamp - using standardized header formatting
+  const titleRange = sheet.getRange("A1");
+  titleRange.setValue("Rental Analysis Report");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
   sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString())
     .setFontSize(9)
     .setFontColor("#666666");
