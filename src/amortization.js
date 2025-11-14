@@ -39,16 +39,29 @@ function generateAmortizationSchedule(months = 12) {
   const totalMonths = loanTerm * 12;
   const monthlyPayment = (loanAmount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -totalMonths));
 
-  // Header
-  amortSheet.getRange("A1").setValue("Loan Amortization Schedule")
-    .setFontWeight("bold").setFontSize(14);
-  amortSheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString());
+  // Title and timestamp - using standardized header formatting with merged cells
+  const titleRange = amortSheet.getRange("A1:F1");
+  titleRange.merge();
+  titleRange.setValue("Loan Amortization Schedule");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
+  const timestampRange = amortSheet.getRange("A2:F2");
+  timestampRange.merge();
+  timestampRange.setValue("Generated: " + new Date().toLocaleString())
+    .setFontSize(9)
+    .setFontColor("#666666");
 
   let row = 4;
 
   // Loan Summary
-  amortSheet.getRange(row, 1).setValue("Loan Summary")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  amortSheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Loan Summary")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const summaryData = [
@@ -74,8 +87,12 @@ function generateAmortizationSchedule(months = 12) {
   const monthsToShow = Math.min(months, totalMonths);
 
   // Payment Schedule Header
-  amortSheet.getRange(row, 1).setValue(`Payment Schedule (First ${monthsToShow} Months)`)
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  amortSheet.getRange(row, 1, 1, 6).merge()
+    .setValue(`Payment Schedule (First ${monthsToShow} Months)`)
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   // Column headers
@@ -83,7 +100,8 @@ function generateAmortizationSchedule(months = 12) {
   amortSheet.getRange(row, 1, 1, headers.length).setValues([headers])
     .setFontWeight("bold")
     .setBackground("#d9e2f3")
-    .setBorder(true, true, true, true, true, true);
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
   // Calculate amortization schedule
@@ -125,8 +143,12 @@ function generateAmortizationSchedule(months = 12) {
   row += scheduleData.length + 2;
 
   // Summary statistics
-  amortSheet.getRange(row, 1).setValue("Summary Statistics")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  amortSheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Summary Statistics")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const lastPayment = scheduleData[scheduleData.length - 1];
@@ -145,8 +167,13 @@ function generateAmortizationSchedule(months = 12) {
   amortSheet.getRange(row, 2, 3, 1).setNumberFormat('"$"#,##0');
   amortSheet.getRange(row + 3, 2).setNumberFormat("0.00%");
 
-  // Auto-resize columns
-  amortSheet.autoResizeColumns(1, headers.length);
+  // Set column widths
+  amortSheet.setColumnWidth(1, 80);   // Month
+  amortSheet.setColumnWidth(2, 120);  // Payment
+  amortSheet.setColumnWidth(3, 120);  // Principal
+  amortSheet.setColumnWidth(4, 120);  // Interest
+  amortSheet.setColumnWidth(5, 120);  // Balance
+  amortSheet.setColumnWidth(6, 150);  // Cumulative Interest
 
   Logger.log(`✅ Amortization schedule generated for ${monthsToShow} months`);
 

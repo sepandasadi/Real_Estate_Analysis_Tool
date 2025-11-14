@@ -343,16 +343,29 @@ function generateAdvancedMetricsAnalysis() {
 
   sheet.clearContents();
 
-  // Header
-  sheet.getRange("A1").setValue("Advanced Financial Metrics")
-    .setFontWeight("bold").setFontSize(14);
-  sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString());
+  // Title and timestamp - using standardized header formatting with merged cells
+  const titleRange = sheet.getRange("A1:F1");
+  titleRange.merge();
+  titleRange.setValue("Advanced Financial Metrics");
+  styleHeader(titleRange, 'h1');
+  titleRange.setBackground("#1a73e8");
+  titleRange.setFontColor("white");
+
+  const timestampRange = sheet.getRange("A2:F2");
+  timestampRange.merge();
+  timestampRange.setValue("Generated: " + new Date().toLocaleString())
+    .setFontSize(9)
+    .setFontColor("#666666");
 
   let row = 4;
 
   // Section 1: Multi-Year Projections & IRR/NPV
-  sheet.getRange(row, 1).setValue("10-Year Cash Flow Projections")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("10-Year Cash Flow Projections")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const projections = generateCashFlowProjections(10);
@@ -379,15 +392,20 @@ function generateAdvancedMetricsAnalysis() {
   row += summaryData.length + 2;
 
   // Year-by-year breakdown
-  sheet.getRange(row, 1).setValue("Year-by-Year Breakdown")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 6).merge()
+    .setValue("Year-by-Year Breakdown")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const headers = ["Year", "Annual Rent", "NOI", "Cash Flow", "Property Value", "Cumulative CF"];
   sheet.getRange(row, 1, 1, headers.length).setValues([headers])
     .setFontWeight("bold")
     .setBackground("#d9e2f3")
-    .setBorder(true, true, true, true, true, true);
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
   const yearlyRows = projections.yearlyData.map(y => [
@@ -405,8 +423,12 @@ function generateAdvancedMetricsAnalysis() {
   row += yearlyRows.length + 2;
 
   // Section 2: Break-Even Analysis
-  sheet.getRange(row, 1).setValue("Break-Even Analysis")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Break-Even Analysis")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const breakEven = calculateBreakEven();
@@ -441,8 +463,12 @@ function generateAdvancedMetricsAnalysis() {
   row += breakEvenData.length + 2;
 
   // Section 3: Loan Scenario Comparison
-  sheet.getRange(row, 1).setValue("Loan Scenario Comparison")
-    .setFontWeight("bold").setBackground("#f2f2f2");
+  sheet.getRange(row, 1, 1, 6).merge()
+    .setValue("Loan Scenario Comparison")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
   row++;
 
   const scenarios = compareLoanScenarios();
@@ -451,7 +477,8 @@ function generateAdvancedMetricsAnalysis() {
   sheet.getRange(row, 1, 1, scenarioHeaders.length).setValues([scenarioHeaders])
     .setFontWeight("bold")
     .setBackground("#d9e2f3")
-    .setBorder(true, true, true, true, true, true);
+    .setHorizontalAlignment("center")
+    .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
   const scenarioRows = scenarios.map(s => [
@@ -475,7 +502,13 @@ function generateAdvancedMetricsAnalysis() {
     }
   }
 
-  sheet.autoResizeColumns(1, scenarioHeaders.length);
+  // Set column widths
+  sheet.setColumnWidth(1, 180);  // Scenario
+  sheet.setColumnWidth(2, 80);   // Rate
+  sheet.setColumnWidth(3, 100);  // Term
+  sheet.setColumnWidth(4, 130);  // Monthly Payment
+  sheet.setColumnWidth(5, 130);  // Total Interest
+  sheet.setColumnWidth(6, 130);  // 1st Year Interest
 
   Logger.log("✅ Advanced Metrics Analysis generated");
 }
