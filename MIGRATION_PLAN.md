@@ -4,7 +4,9 @@
 **Target Users**: 2-3 users (personal use)
 **Budget**: $0/month (free hosting + free API tiers)
 **Timeline**: 8-12 weeks
-**Status**: 🟡 In Progress
+**Status**: 🟡 In Progress - Phase 3
+
+**Note**: Phases 1 & 2 have been completed. The API hierarchy has been updated to use Zillow API (via RapidAPI) as the primary source, with US Real Estate API, Gemini AI, and Bridge Dataset as fallbacks.
 
 ---
 
@@ -13,9 +15,10 @@
 ### Current State
 - Google Sheets-based tool with Google Apps Script backend
 - ~20 JavaScript modules handling calculations and analysis
-- API integrations: Bridge Dataset, Gemini AI, OpenAI
+- API integrations: Zillow API (RapidAPI), US Real Estate API, Gemini AI, Bridge Dataset
 - Two modes: Simple and Advanced
 - Features: Flip analysis, rental analysis, sensitivity analysis, partnership management, project tracking
+- Quota management system to prevent API overage charges
 
 ### Target State
 - Progressive Web App (PWA) with React + TypeScript frontend
@@ -80,9 +83,9 @@ Real_Estate_Analysis_Tool/
 
 ---
 
-### 🟡 Phase 1: Reorganize Codebase
+### ✅ Phase 1: Reorganize Codebase (COMPLETED)
 **Duration**: Day 1 (1-2 hours)
-**Status**: 🔴 Not Started
+**Status**: ✅ Done
 
 **Goals:**
 - Separate Google Apps Script backend from future web app frontend
@@ -90,13 +93,13 @@ Real_Estate_Analysis_Tool/
 - Update documentation
 
 **Tasks:**
-- [ ] Create `google-apps-script/` directory
-- [ ] Move all `src/*.js` files to `google-apps-script/src/`
-- [ ] Move `src/Sidebar.html` to `google-apps-script/src/`
-- [ ] Create `google-apps-script/README.md` with setup instructions
-- [ ] Create `web-app/` directory (empty placeholder)
-- [ ] Update root `README.md` to reflect new structure
-- [ ] Commit changes to git
+- [x] Create `google-apps-script/` directory
+- [x] Move all `src/*.js` files to `google-apps-script/src/`
+- [x] Move `src/Sidebar.html` to `google-apps-script/src/`
+- [x] Create `google-apps-script/README.md` with setup instructions
+- [x] Create `web-app/` directory (empty placeholder)
+- [x] Update root `README.md` to reflect new structure
+- [x] Commit changes to git
 
 **Deliverables:**
 - ✅ Clean directory structure
@@ -105,42 +108,46 @@ Real_Estate_Analysis_Tool/
 
 ---
 
-### 🔴 Phase 2: Fix API Hierarchy in Google Apps Script
+### ✅ Phase 2: Fix API Hierarchy in Google Apps Script (COMPLETED)
 **Duration**: Days 2-4 (2-3 days)
-**Status**: 🔴 Not Started
+**Status**: ✅ Done
 
 **Goals:**
-- Implement API waterfall: Realty Mole → RapidAPI → Gemini → Bridge
-- Remove OpenAI integration
-- Add API usage tracking
-- Create REST API endpoint for PWA
+- Implement API waterfall: Zillow API → US Real Estate API → Gemini → Bridge
+- Add API usage tracking and quota management
+- Fix comps table formatting issues
 
-#### Step 2.1: Update API Integrations
+#### Step 2.1: Update API Integrations (COMPLETED)
 
-**New API Priority:**
-1. **Realty Mole** (Priority 1) - Free tier: 500 requests/month
-2. **RapidAPI** (Priority 2) - Free tier varies by API
+**Actual API Priority Implemented:**
+1. **Zillow API** (Priority 1) - Via RapidAPI, Free tier: 100 requests/month
+2. **US Real Estate API** (Priority 2) - Via RapidAPI, Free tier: 100 requests/month
 3. **Gemini AI** (Priority 3) - Free tier: 1,500 requests/day
 4. **Bridge Dataset** (Priority 4) - Existing account
 
-**Tasks:**
-- [ ] Sign up for Realty Mole API (https://realtymole.com/api)
-- [ ] Add `REALTY_MOLE_API_KEY` to Script Properties
-- [ ] Create `fetchCompsFromRealtyMole()` function in `apiBridge.js`
-- [ ] Sign up for RapidAPI account (https://rapidapi.com)
-- [ ] Choose free real estate API on RapidAPI
-- [ ] Add `RAPIDAPI_KEY` to Script Properties
-- [ ] Create `fetchCompsFromRapidAPI()` function in `apiBridge.js`
-- [ ] Update `fetchCompsData()` with waterfall logic
-- [ ] Remove `fetchCompsFromOpenAI()` function
-- [ ] Remove `OPENAI_API_KEY` from Script Properties
-- [ ] Update `getApiKeys()` to remove OpenAI reference
-- [ ] Add `trackAPIUsage()` function for monitoring
-- [ ] Test each API individually
-- [ ] Verify data format consistency across APIs
-- [ ] Update error handling and logging
+**Tasks Completed:**
+- [x] Signed up for RapidAPI account
+- [x] Subscribed to Zillow API on RapidAPI
+- [x] Subscribed to US Real Estate API on RapidAPI
+- [x] Added `RAPIDAPI_KEY` to Script Properties
+- [x] Created `fetchCompsFromZillow()` function in `apiBridge.js`
+- [x] Created `fetchCompsFromUSRealEstate()` function in `apiBridge.js`
+- [x] Updated `fetchCompsData()` with waterfall logic
+- [x] Implemented quota management system with `checkQuotaAvailable()`
+- [x] Added API usage tracking to Script Properties
+- [x] Fixed comps table formatting (sale dates, distances, property links)
+- [x] Tested API integrations
+- [x] Verified data format consistency
+- [x] Updated error handling and logging
 
-**API Waterfall Logic:**
+**Key Changes:**
+- Replaced non-existent "Realty Mole" API with working Zillow API
+- Added quota tracking to prevent overage charges (90% threshold)
+- Fixed sale date formatting (Unix timestamps → MM/DD/YYYY)
+- Added clickable property links in comps table
+- Added distance calculations when lat/long available
+
+**Actual API Waterfall Logic Implemented:**
 ```javascript
 function fetchCompsData(data, forceRefresh = false) {
   // 1. Check cache first (24-hour cache)
@@ -149,55 +156,56 @@ function fetchCompsData(data, forceRefresh = false) {
     if (cached) return cached;
   }
 
-  // 2. Try Realty Mole (Priority 1)
-  try {
-    const comps = fetchCompsFromRealtyMole(data);
-    if (comps && comps.length > 0) {
-      trackAPIUsage('realty_mole', true);
-      setCachedComps(..., comps);
-      return comps;
+  // 2. Try Zillow API (Priority 1)
+  if (checkQuotaAvailable('zillow', 'monthly')) {
+    try {
+      const comps = fetchCompsFromZillow(data);
+      if (comps && comps.length > 0) {
+        incrementAPIUsage('zillow', 'monthly');
+        setCachedComps(..., comps);
+        return comps;
+      }
+    } catch (e) {
+      Logger.log("Zillow failed: " + e);
     }
-  } catch (e) {
-    trackAPIUsage('realty_mole', false);
-    Logger.log("Realty Mole failed: " + e);
   }
 
-  // 3. Try RapidAPI (Priority 2)
-  try {
-    const comps = fetchCompsFromRapidAPI(data);
-    if (comps && comps.length > 0) {
-      trackAPIUsage('rapidapi', true);
-      setCachedComps(..., comps);
-      return comps;
+  // 3. Try US Real Estate API (Priority 2)
+  if (checkQuotaAvailable('usrealestate', 'monthly')) {
+    try {
+      const comps = fetchCompsFromUSRealEstate(data);
+      if (comps && comps.length > 0) {
+        incrementAPIUsage('usrealestate', 'monthly');
+        setCachedComps(..., comps);
+        return comps;
+      }
+    } catch (e) {
+      Logger.log("US Real Estate failed: " + e);
     }
-  } catch (e) {
-    trackAPIUsage('rapidapi', false);
-    Logger.log("RapidAPI failed: " + e);
   }
 
   // 4. Try Gemini AI (Priority 3)
-  try {
-    const comps = fetchCompsFromGemini(data, GEMINI_API_KEY);
-    if (comps && comps.length > 0) {
-      trackAPIUsage('gemini', true);
-      setCachedComps(..., comps);
-      return comps;
+  if (checkQuotaAvailable('gemini', 'daily')) {
+    try {
+      const comps = fetchCompsFromGemini(data, GEMINI_API_KEY);
+      if (comps && comps.length > 0) {
+        incrementAPIUsage('gemini', 'daily');
+        setCachedComps(..., comps);
+        return comps;
+      }
+    } catch (e) {
+      Logger.log("Gemini failed: " + e);
     }
-  } catch (e) {
-    trackAPIUsage('gemini', false);
-    Logger.log("Gemini failed: " + e);
   }
 
   // 5. Try Bridge Dataset (Priority 4)
   try {
     const comps = fetchFromBridge(data, BRIDGE_API_KEY);
     if (comps && comps.length > 0) {
-      trackAPIUsage('bridge', true);
       setCachedComps(..., comps);
       return comps;
     }
   } catch (e) {
-    trackAPIUsage('bridge', false);
     Logger.log("Bridge failed: " + e);
   }
 
@@ -206,52 +214,42 @@ function fetchCompsData(data, forceRefresh = false) {
 }
 ```
 
-#### Step 2.2: Create Web App Endpoint
+**Deliverables:**
+- ✅ Updated `apiBridge.js` with waterfall logic
+- ✅ Zillow and US Real Estate APIs integrated and tested
+- ✅ Quota management system implemented
+- ✅ API usage tracking implemented
+- ✅ Comps table formatting fixed
+
+**Note**: Web App endpoint creation will be part of Phase 3 when we build the PWA frontend.
+
+---
+
+### 🟡 Phase 3: Build PWA Frontend
+**Duration**: Days 5-7 (2-3 days)
+**Status**: 🟡 In Progress
+
+**Goals:**
+- Set up React + TypeScript + PWA project
+- Configure Tailwind CSS
+- Set up project structure
+- Create Google Apps Script Web App endpoint
+- Connect frontend to backend API
 
 **Tasks:**
+
+**Backend (Google Apps Script):**
 - [ ] Create `webAppEndpoint.js` in `google-apps-script/src/`
 - [ ] Implement `doPost()` function for API requests
 - [ ] Implement `doGet()` function for health checks
 - [ ] Add CORS headers for cross-origin requests
 - [ ] Create API actions: analyze, fetchComps, calculateFlip, calculateRental
 - [ ] Deploy as Web App in Apps Script
-- [ ] Set execution as "Me" and access to "Anyone with the link"
+- [ ] Set execution as "Me" and access to "Anyone"
 - [ ] Copy Web App URL for frontend integration
 - [ ] Test endpoint with curl/Postman
-- [ ] Document API endpoints and request/response formats
 
-**API Endpoints:**
-```
-POST https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec
-
-Actions:
-- analyze: Full property analysis
-- fetchComps: Get comparable properties
-- calculateFlip: Calculate flip analysis
-- calculateRental: Calculate rental analysis
-```
-
-**Deliverables:**
-- ✅ Updated `apiBridge.js` with waterfall logic
-- ✅ All 4 APIs integrated and tested
-- ✅ OpenAI removed
-- ✅ API usage tracking implemented
-- ✅ Working Web App endpoint
-- ✅ API documentation
-
----
-
-### 🔴 Phase 3: Initialize Web App
-**Duration**: Days 5-7 (2-3 days)
-**Status**: 🔴 Not Started
-
-**Goals:**
-- Set up React + TypeScript + PWA project
-- Configure Tailwind CSS
-- Set up project structure
-- Connect to Google Apps Script API
-
-**Tasks:**
+**Frontend (React PWA):**
 - [ ] Navigate to `web-app/` directory
 - [ ] Initialize React PWA: `npx create-react-app . --template cra-template-pwa-typescript`
 - [ ] Install dependencies:
@@ -296,6 +294,7 @@ web-app/src/
 ```
 
 **Deliverables:**
+- ✅ Google Apps Script Web App endpoint deployed
 - ✅ Working React + TypeScript + Tailwind setup
 - ✅ PWA manifest configured
 - ✅ Service worker enabled
@@ -563,8 +562,8 @@ web-app/src/
 
 | Item | Cost | Notes |
 |------|------|-------|
-| **Realty Mole API** | $0/month | Free tier: 500 requests/month |
-| **RapidAPI** | $0/month | Free tier varies by API |
+| **Zillow API (RapidAPI)** | $0/month | Free tier: 100 requests/month |
+| **US Real Estate API (RapidAPI)** | $0/month | Free tier: 100 requests/month |
 | **Gemini API** | $0/month | Free tier: 1,500 requests/day |
 | **Bridge Dataset** | $0/month | Existing account |
 | **Vercel Hosting** | $0/month | Free tier: unlimited projects |
@@ -593,8 +592,8 @@ web-app/src/
 - CDN included
 
 ### **APIs:**
-1. Realty Mole (priority)
-2. RapidAPI (fallback)
+1. Zillow API via RapidAPI (priority)
+2. US Real Estate API via RapidAPI (fallback)
 3. Gemini AI (fallback)
 4. Bridge Dataset (fallback)
 
@@ -602,14 +601,14 @@ web-app/src/
 
 ## 📊 Progress Tracking
 
-### Overall Progress: 0% Complete
+### Overall Progress: 25% Complete
 
 | Phase | Status | Progress | Duration |
 |-------|--------|----------|----------|
 | Phase 0: Planning | ✅ Done | 100% | Completed |
-| Phase 1: Reorganize | 🔴 Not Started | 0% | Day 1 |
-| Phase 2: API Fix | 🔴 Not Started | 0% | Days 2-4 |
-| Phase 3: Initialize | 🔴 Not Started | 0% | Days 5-7 |
+| Phase 1: Reorganize | ✅ Done | 100% | Day 1 |
+| Phase 2: API Fix | ✅ Done | 100% | Days 2-4 |
+| Phase 3: Build PWA | 🟡 In Progress | 0% | Days 5-7 |
 | Phase 4: UI Components | 🔴 Not Started | 0% | Days 8-14 |
 | Phase 5: Business Logic | 🔴 Not Started | 0% | Days 15-21 |
 | Phase 6: Advanced Features | 🔴 Not Started | 0% | Days 22-42 |
@@ -628,10 +627,11 @@ web-app/src/
 ### Key Decisions Made:
 1. **PWA over Native Apps**: Chosen for cost-effectiveness and cross-platform support
 2. **Keep Google Apps Script Backend**: Leverage existing code, no migration needed
-3. **API Waterfall**: Realty Mole → RapidAPI → Gemini → Bridge (prioritize free tiers)
-4. **Remove OpenAI**: Cost optimization, Gemini is cheaper
+3. **API Waterfall**: Zillow → US Real Estate → Gemini → Bridge (prioritize free tiers)
+4. **Quota Management**: Implemented 90% threshold to prevent overage charges
 5. **Free Hosting**: Vercel free tier is sufficient for 2-3 users
 6. **Phased Approach**: Reorganize → API Fix → Web App (clear progression)
+7. **Zillow API**: Replaced non-existent "Realty Mole" with working Zillow API via RapidAPI
 
 ### Risks & Mitigations:
 - **Risk**: API rate limits exceeded
@@ -647,9 +647,12 @@ web-app/src/
 
 ## 🚀 Next Steps
 
-1. **Immediate**: Start Phase 1 (Reorganize Codebase)
-2. **This Week**: Complete Phase 1 & Phase 2 (API Fix)
-3. **Next Week**: Start Phase 3 (Initialize Web App)
+1. **Immediate**: Start Phase 3 (Build PWA Frontend)
+   - Create Google Apps Script Web App endpoint
+   - Initialize React + TypeScript PWA
+   - Connect frontend to backend
+2. **This Week**: Complete Phase 3 & start Phase 4 (UI Components)
+3. **Next 2 Weeks**: Complete Phase 4 & Phase 5 (Business Logic)
 
 ---
 
@@ -665,5 +668,5 @@ web-app/src/
 ---
 
 **Last Updated**: November 15, 2025
-**Version**: 1.0
-**Status**: Planning Complete, Ready to Start Implementation
+**Version**: 1.1
+**Status**: Phase 2 Complete, Starting Phase 3
