@@ -369,6 +369,69 @@ function fetchCompsFromOpenAI(data, OPENAI_API_KEY) {
 }
 
 /**
+ * Fetch property details (beds, baths, sqft) from Zillow API
+ * Used for ARV calculation and rental estimates
+ */
+function fetchPropertyDetails(data) {
+  const { RAPIDAPI_KEY } = getApiKeys();
+
+  if (!RAPIDAPI_KEY) {
+    throw new Error("RAPIDAPI_KEY not found in Script Properties");
+  }
+
+  const fullAddress = `${data.address}, ${data.city}, ${data.state} ${data.zip}`.trim();
+  Logger.log("🏠 Fetching property details for: " + fullAddress);
+
+  // Try to get property details from Zillow
+  const url = `https://zillow-com1.p.rapidapi.com/property?address=${encodeURIComponent(fullAddress)}`;
+
+  const options = {
+    method: 'get',
+    headers: {
+      'X-RapidAPI-Key': RAPIDAPI_KEY,
+      'X-RapidAPI-Host': 'zillow-com1.p.rapidapi.com'
+    },
+    muteHttpExceptions: true
+  };
+
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const statusCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (statusCode === 200) {
+      const json = JSON.parse(responseText);
+
+      // Extract property details
+      const propertyDetails = {
+        beds: json.bedrooms || json.beds || 3,
+        baths: json.bathrooms || json.baths || 2,
+        sqft: json.livingArea || json.sqft || 1500,
+        yearBuilt: json.yearBuilt || null,
+        lotSize: json.lotSize || null,
+        propertyType: json.propertyType || json.homeType || 'Single Family'
+      };
+
+      Logger.log(`✅ Property details: ${propertyDetails.beds} bed, ${propertyDetails.baths} bath, ${propertyDetails.sqft} sqft`);
+      return propertyDetails;
+    }
+  } catch (e) {
+    Logger.log(`⚠️ Failed to fetch property details: ${e.message}`);
+  }
+
+  // Fallback to default values if API fails
+  Logger.log("⚠️ Using default property details");
+  return {
+    beds: 3,
+    baths: 2,
+    sqft: 1500,
+    yearBuilt: null,
+    lotSize: null,
+    propertyType: 'Single Family'
+  };
+}
+
+/**
  * Fetch comps from Zillow API
  * Priority 1 in waterfall
  */
@@ -431,8 +494,10 @@ function fetchCompsFromZillow(data) {
         address: prop.address || prop.streetAddress || "Unknown",
         price: prop.price || 0,
         sqft: prop.livingArea || prop.sqft || 0,
+        beds: prop.bedrooms || prop.beds || 0,
+        baths: prop.bathrooms || prop.baths || 0,
         saleDate: formattedDate,
-        distance: prop.distance || 0, // Zillow may provide distance in some responses
+        distance: prop.distance || 0,
         condition: "unknown",
         link: propertyLink,
         latitude: prop.latitude || prop.lat || null,

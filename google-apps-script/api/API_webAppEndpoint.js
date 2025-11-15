@@ -101,30 +101,65 @@ function handleAnalyze(data) {
   // Validate required fields
   validateAnalysisData(data);
 
-  // Fetch comps
+  // Step 1: Fetch property details (beds, baths, sqft)
+  Logger.log("📋 Step 1: Fetching property details...");
+  const propertyDetails = fetchPropertyDetails(data);
+
+  // Step 2: Calculate closing costs automatically (2.5% of purchase price)
+  Logger.log("💰 Step 2: Calculating closing costs...");
+  data.closingCosts = data.purchasePrice * 0.025;
+
+  // Step 3: Fetch comps with property details for filtering
+  Logger.log("🏘️ Step 3: Fetching comparable properties...");
   const comps = fetchCompsData(data, false);
 
-  // Calculate flip analysis
+  // Step 4: Calculate ARV from comps based on property similarity
+  Logger.log("📊 Step 4: Calculating ARV from comps...");
+  data.arv = calculateARVFromComps(comps, propertyDetails, data.purchasePrice);
+
+  // Step 5: Calculate rental estimates automatically
+  Logger.log("🏠 Step 5: Calculating rental estimates...");
+  const rentalEstimates = calculateRentalEstimates(data, propertyDetails, comps);
+
+  // Merge rental estimates into data
+  data.monthlyRent = rentalEstimates.monthlyRent;
+  data.propertyTax = rentalEstimates.propertyTax;
+  data.insurance = rentalEstimates.insurance;
+  data.hoaFees = rentalEstimates.hoaFees;
+  data.maintenance = rentalEstimates.maintenance;
+  data.vacancy = rentalEstimates.vacancy;
+
+  // Step 6: Calculate flip analysis
+  Logger.log("🔨 Step 6: Calculating flip analysis...");
   const flipAnalysis = calculateFlipAnalysis(data);
 
-  // Calculate rental analysis
+  // Step 7: Calculate rental analysis
+  Logger.log("🏘️ Step 7: Calculating rental analysis...");
   const rentalAnalysis = calculateRentalAnalysis(data);
 
-  // Generate score
+  // Step 8: Generate score
+  Logger.log("⭐ Step 8: Generating deal score...");
   const score = calculateDealScore(flipAnalysis, rentalAnalysis);
 
-  // Generate alerts
+  // Step 9: Generate alerts
+  Logger.log("⚠️ Step 9: Generating alerts...");
   const alerts = generateAlerts(flipAnalysis, rentalAnalysis);
 
-  // Generate insights
+  // Step 10: Generate insights
+  Logger.log("💡 Step 10: Generating insights...");
   const insights = generateInsights(flipAnalysis, rentalAnalysis, data);
+
+  Logger.log("✅ Analysis complete!");
 
   return {
     property: {
       address: data.address,
       city: data.city,
       state: data.state,
-      zip: data.zip
+      zip: data.zip,
+      beds: propertyDetails.beds,
+      baths: propertyDetails.baths,
+      sqft: propertyDetails.sqft
     },
     comps: comps,
     flip: flipAnalysis,
@@ -309,21 +344,114 @@ function validateRentalData(data) {
 }
 
 /**
+ * Calculate ARV from comps based on property similarity
+ * Filters comps by beds, baths, and sqft similarity
+ */
+function calculateARVFromComps(comps, propertyDetails, purchasePrice) {
+  if (!comps || comps.length === 0) {
+    Logger.log("⚠️ No comps available, using 1.3x purchase price as ARV");
+    return purchasePrice * 1.3;
+  }
+
+  // Filter comps by similarity (±20% sqft, same beds/baths preferred)
+  const targetSqft = propertyDetails.sqft;
+  const targetBeds = propertyDetails.beds;
+  const targetBaths = propertyDetails.baths;
+
+  const similarComps = comps.filter(comp => {
+    const sqftMatch = comp.sqft >= targetSqft * 0.8 && comp.sqft <= targetSqft * 1.2;
+    const bedsMatch = !comp.beds || comp.beds === targetBeds;
+    const bathsMatch = !comp.baths || Math.abs(comp.baths - targetBaths) <= 0.5;
+
+    return sqftMatch && bedsMatch && bathsMatch;
+  });
+
+  // If no similar comps, use all comps
+  const compsToUse = similarComps.length > 0 ? similarComps : comps;
+
+  Logger.log(`📊 Using ${compsToUse.length} similar comps for ARV calculation`);
+
+  // Separate remodeled and unremodeled comps
+  const remodeledComps = compsToUse.filter(c => c.condition === "remodeled");
+  const unremodeledComps = compsToUse.filter(c => c.condition === "unremodeled");
+
+  // Calculate average prices
+  let arv;
+  if (remodeledComps.length > 0) {
+    // Use remodeled comps average
+    arv = remodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / remodeledComps.length;
+    Logger.log(`✅ ARV based on ${remodeledComps.length} remodeled comps: $${Math.round(arv)}`);
+  } else if (unremodeledComps.length > 0) {
+    // Use unremodeled comps average × 1.15 (renovation premium)
+    const avgUnremodeled = unremodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / unremodeledComps.length;
+    arv = avgUnremodeled * 1.15;
+    Logger.log(`✅ ARV based on ${unremodeledComps.length} unremodeled comps + 15% premium: $${Math.round(arv)}`);
+  } else {
+    // Use all comps average
+    arv = compsToUse.reduce((sum, c) => sum + (c.price || 0), 0) / compsToUse.length;
+    Logger.log(`✅ ARV based on ${compsToUse.length} comps average: $${Math.round(arv)}`);
+  }
+
+  return Math.round(arv);
+}
+
+/**
+ * Calculate rental estimates automatically
+ * Returns all rental-related fields
+ */
+function calculateRentalEstimates(data, propertyDetails, comps) {
+  const purchasePrice = parseFloat(data.purchasePrice);
+
+  // 1. Monthly Rent - Use 1% rule as baseline, adjust by market
+  let monthlyRent = purchasePrice * 0.01;
+
+  // Try to get more accurate rent from comps or market data
+  // For now, use 1% rule
+  Logger.log(`💵 Estimated monthly rent (1% rule): $${Math.round(monthlyRent)}`);
+
+  // 2. Property Tax - Use state average or 1.2% annual
+  const propertyTax = (purchasePrice * 0.012) / 12;
+  Logger.log(`🏛️ Estimated property tax (monthly): $${Math.round(propertyTax)}`);
+
+  // 3. Insurance - 0.5% of property value annually
+  const insurance = (purchasePrice * 0.005) / 12;
+  Logger.log(`🛡️ Estimated insurance (monthly): $${Math.round(insurance)}`);
+
+  // 4. HOA Fees - Default to $0 (would need property details API)
+  const hoaFees = 0;
+  Logger.log(`🏘️ HOA fees: $${hoaFees}`);
+
+  // 5. Maintenance - 1% of property value annually
+  const maintenance = (purchasePrice * 0.01) / 12;
+  Logger.log(`🔧 Estimated maintenance (monthly): $${Math.round(maintenance)}`);
+
+  // 6. Vacancy - 8% of monthly rent
+  const vacancy = monthlyRent * 0.08;
+  Logger.log(`📅 Estimated vacancy reserve (monthly): $${Math.round(vacancy)}`);
+
+  return {
+    monthlyRent: Math.round(monthlyRent),
+    propertyTax: Math.round(propertyTax),
+    insurance: Math.round(insurance),
+    hoaFees: hoaFees,
+    maintenance: Math.round(maintenance),
+    vacancy: Math.round(vacancy)
+  };
+}
+
+/**
  * Calculate flip analysis (wrapper for analyzer.js)
  */
 function calculateFlipAnalysis(data) {
-  // This will call the existing analyzer.js functions
-  // For now, return a placeholder structure
-  // TODO: Integrate with existing analyzer.js functions
-
   const purchasePrice = parseFloat(data.purchasePrice);
   const rehabCost = parseFloat(data.rehabCost || 0);
-  const arv = parseFloat(data.arv || purchasePrice * 1.3);
+  const arv = parseFloat(data.arv);
+  const closingCosts = parseFloat(data.closingCosts);
   const holdingMonths = parseInt(data.holdingMonths || 6);
 
   // Calculate basic metrics
-  const totalInvestment = purchasePrice + rehabCost;
-  const sellingCosts = arv * 0.08; // 8% selling costs
+  const totalInvestment = purchasePrice + rehabCost + closingCosts;
+  const sellingCosts = arv * 0.08; // 8% selling costs (6% commission + 2% closing)
   const netProfit = arv - totalInvestment - sellingCosts;
   const roi = (netProfit / totalInvestment) * 100;
 
@@ -331,6 +459,7 @@ function calculateFlipAnalysis(data) {
     purchasePrice: purchasePrice,
     rehabCost: rehabCost,
     arv: arv,
+    closingCosts: closingCosts,
     totalInvestment: totalInvestment,
     sellingCosts: sellingCosts,
     netProfit: netProfit,
@@ -344,31 +473,39 @@ function calculateFlipAnalysis(data) {
  * Calculate rental analysis (wrapper for analyzer.js)
  */
 function calculateRentalAnalysis(data) {
-  // This will call the existing analyzer.js functions
-  // For now, return a placeholder structure
-  // TODO: Integrate with existing analyzer.js functions
-
   const purchasePrice = parseFloat(data.purchasePrice);
-  const monthlyRent = parseFloat(data.monthlyRent || purchasePrice * 0.01);
-  const downPayment = parseFloat(data.downPayment || purchasePrice * 0.25);
+  const monthlyRent = parseFloat(data.monthlyRent);
+
+  // Convert down payment from percentage to dollar amount
+  const downPaymentPercent = parseFloat(data.downPayment || 25) / 100;
+  const downPayment = purchasePrice * downPaymentPercent;
+
   const interestRate = parseFloat(data.interestRate || 7.0);
   const loanTerm = parseInt(data.loanTerm || 30);
 
-  // Calculate basic metrics
+  // Get auto-calculated expenses
+  const propertyTax = parseFloat(data.propertyTax);
+  const insurance = parseFloat(data.insurance);
+  const hoaFees = parseFloat(data.hoaFees || 0);
+  const maintenance = parseFloat(data.maintenance);
+  const vacancy = parseFloat(data.vacancy);
+
+  // Calculate loan metrics
   const loanAmount = purchasePrice - downPayment;
   const monthlyRate = interestRate / 100 / 12;
   const numPayments = loanTerm * 12;
-  const monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+  const monthlyPayment = loanAmount > 0
+    ? loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1)
+    : 0;
 
-  const propertyTax = purchasePrice * 0.012 / 12; // 1.2% annual
-  const insurance = purchasePrice * 0.005 / 12; // 0.5% annual
-  const maintenance = monthlyRent * 0.10; // 10% of rent
-  const vacancy = monthlyRent * 0.08; // 8% of rent
-
-  const totalExpenses = monthlyPayment + propertyTax + insurance + maintenance + vacancy;
+  // Calculate cash flow
+  const totalExpenses = monthlyPayment + propertyTax + insurance + hoaFees + maintenance + vacancy;
   const cashFlow = monthlyRent - totalExpenses;
-  const capRate = ((monthlyRent * 12 - (propertyTax + insurance + maintenance + vacancy) * 12) / purchasePrice) * 100;
-  const cashOnCashReturn = ((cashFlow * 12) / downPayment) * 100;
+
+  // Calculate returns
+  const annualNOI = (monthlyRent * 12) - ((propertyTax + insurance + hoaFees + maintenance + vacancy) * 12);
+  const capRate = (annualNOI / purchasePrice) * 100;
+  const cashOnCashReturn = downPayment > 0 ? ((cashFlow * 12) / downPayment) * 100 : 0;
 
   return {
     purchasePrice: purchasePrice,
@@ -378,6 +515,7 @@ function calculateRentalAnalysis(data) {
     monthlyPayment: monthlyPayment,
     propertyTax: propertyTax,
     insurance: insurance,
+    hoaFees: hoaFees,
     maintenance: maintenance,
     vacancy: vacancy,
     totalExpenses: totalExpenses,

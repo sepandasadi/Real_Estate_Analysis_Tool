@@ -1,0 +1,24 @@
+{
+  "name": "real-estate-analysis-tool-gas",
+  "version": "3.0.0",
+  "description": "Google Apps Script backend for Real Estate Analysis Tool",
+  "scripts": {
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "deploy": "clasp deploy",
+    "open": "clasp open",
+    "logs": "clasp logs",
+    "status": "clasp status"
+  },
+  "keywords": [
+    "google-apps-script",
+    "real-estate",
+    "analysis",
+    "clasp"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

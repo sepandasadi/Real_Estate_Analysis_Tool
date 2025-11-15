@@ -1,0 +1,17 @@
+# Ignore documentation and non-script files
+docs/
+*.md
+README.md
+DEPLOYMENT_GUIDE.md
+RELEASE_NOTES.md
+
+# Ignore git files
+.git
+.gitignore
+
+# Ignore node modules if any
+node_modules/
+
+# Ignore local development files
+.DS_Store
+*.log
