@@ -211,37 +211,49 @@ Cap Rate = NOI / Property Value
 Cash-on-Cash Return = Annual Cash Flow / Total Cash Deployed
 ```
 
-## Development
+## Project Structure
 
-### File Structure
+This project is being migrated to a Progressive Web App (PWA). See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for details.
+
+### Current Structure
 ```
 Real_Estate_Analysis_Tool/
-├── src/
-│   ├── main.js                 # Core orchestration
-│   ├── analyzer.js             # Flip & rental calculations
-│   ├── sensitivity.js          # Sensitivity analysis
-│   ├── apiBridge.js           # API integration
-│   ├── config.js              # Field mapping
-│   ├── formatter.js           # Sheet formatting
-│   ├── styling.js             # Professional styling
-│   ├── scoring.js             # Deal quality scoring
-│   ├── alerts.js              # Alert generation
-│   ├── insights.js            # Recommendations
-│   ├── amortization.js        # Amortization schedules
-│   ├── taxBenefits.js         # Tax analysis
-│   ├── advancedMetrics.js     # IRR, NPV, break-even
-│   ├── timeline.js            # Project tracking
-│   ├── partnershipManager.js  # Partnership features
-│   ├── inputsSummary.js       # Summary panel
-│   ├── dashboard.js           # Dashboard (deprecated)
-│   ├── charts.js              # Visualizations
-│   ├── locationData.js        # State tax/insurance data
-│   └── Sidebar.html           # User interface
+├── google-apps-script/        # Backend (Google Apps Script)
+│   ├── README.md              # Backend setup instructions
+│   └── src/
+│       ├── main.js            # Core orchestration
+│       ├── analyzer.js        # Flip & rental calculations
+│       ├── apiBridge.js       # API integration (waterfall logic)
+│       ├── scoring.js         # Deal quality scoring
+│       ├── alerts.js          # Alert generation
+│       ├── insights.js        # Recommendations
+│       ├── sensitivity.js     # Sensitivity analysis
+│       ├── amortization.js    # Amortization schedules
+│       ├── taxBenefits.js     # Tax analysis
+│       ├── advancedMetrics.js # IRR, NPV, break-even
+│       ├── timeline.js        # Project tracking
+│       ├── partnershipManager.js # Partnership features
+│       ├── inputsSummary.js   # Summary panel
+│       ├── charts.js          # Visualizations
+│       ├── compsFilter.js     # Comps filtering
+│       ├── locationData.js    # State tax/insurance data
+│       ├── formatter.js       # Sheet formatting
+│       ├── styling.js         # Professional styling
+│       ├── config.js          # Dynamic field mapping
+│       ├── cache.js           # 24-hour caching
+│       ├── protection.js      # Sheet protection
+│       ├── scenarioAnalyzer.js # Scenario analysis
+│       ├── Sidebar.html       # UI sidebar
+│       └── ScenarioAnalyzer.html # Scenario analyzer UI
+│
+├── web-app/                   # Frontend (PWA) - Coming Soon
+│   └── (To be built)
+│
 ├── docs/                      # Documentation
 │   ├── SIMPLE_MODE_GUIDE.md
 │   ├── ADVANCED_MODE_GUIDE.md
-│   ├── PROJECT_TRACKER.md
-│   ├── PARTNER_MANAGEMENT.md
+│   ├── PROJECT_TRACKER_GUIDE.md
+│   ├── PARTNER_MANAGEMENT_GUIDE.md
 │   ├── DYNAMIC_FIELDS_GUIDE.md
 │   ├── IMPROVEMENT_ROADMAP.md
 │   ├── PHASE_1_SUMMARY.md
@@ -250,8 +262,26 @@ Real_Estate_Analysis_Tool/
 │   ├── PHASE_4_SUMMARY.md
 │   ├── PHASE_5_SUMMARY.md
 │   └── PARTNERSHIP_MANAGEMENT_PLAN.md
+│
+├── MIGRATION_PLAN.md          # PWA migration roadmap
+├── RELEASE_NOTES.md
 └── README.md                  # This file
 ```
+
+### Setup Instructions
+
+#### Google Apps Script Backend
+See [google-apps-script/README.md](google-apps-script/README.md) for detailed setup instructions.
+
+**Quick Start:**
+1. Open your Google Sheet
+2. Go to Extensions > Apps Script
+3. Copy all files from `google-apps-script/src/` to Apps Script
+4. Configure API keys in Script Properties
+5. Refresh the sheet
+
+#### Progressive Web App (Coming Soon)
+The PWA frontend is currently under development. See [MIGRATION_PLAN.md](MIGRATION_PLAN.md) for the roadmap.
 
 ### Dynamic Field Mapping
 
