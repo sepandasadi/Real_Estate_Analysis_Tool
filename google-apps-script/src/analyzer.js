@@ -157,9 +157,9 @@ function generateFlipAnalysis(comps) {
     .setHorizontalAlignment("left");
   row++;
 
-  const compsHeaders = [["Address", "Sale Price", "SqFt", "Sale Date", "Distance"]];
-  sheet.getRange(row, 1, 1, 5).setValues(compsHeaders);
-  sheet.getRange(row, 1, 1, 5)
+  const compsHeaders = [["Address", "Sale Price", "SqFt", "Sale Date", "Distance", "Link"]];
+  sheet.getRange(row, 1, 1, 6).setValues(compsHeaders);
+  sheet.getRange(row, 1, 1, 6)
     .setFontWeight("bold")
     .setBackground("#d9e2f3")
     .setHorizontalAlignment("center")
@@ -219,20 +219,27 @@ function generateFlipAnalysis(comps) {
       sheet.getRange(rowNum, 4).setValue(c.saleDate || "—").setHorizontalAlignment("center");
       sheet.getRange(rowNum, 5).setValue(c.distance ? c.distance.toFixed(2) + " mi" : "—").setHorizontalAlignment("center");
 
+      // Add property link with formula
+      if (c.link) {
+        sheet.getRange(rowNum, 6).setFormula(`=HYPERLINK("${c.link}", "View")`).setHorizontalAlignment("center");
+      } else {
+        sheet.getRange(rowNum, 6).setValue("—").setHorizontalAlignment("center");
+      }
+
       // Highlight remodeled comps in green, unremodeled in yellow
       if (c.condition === "remodeled") {
-        sheet.getRange(rowNum, 1, 1, 5)
+        sheet.getRange(rowNum, 1, 1, 6)
           .setBackground("#e8f5e9")
           .setFontWeight("bold")
           .setBorder(true, true, true, true, false, false, "#cccccc", SpreadsheetApp.BorderStyle.SOLID);
         sheet.getRange(rowNum, 1).setNote("Remodeled comp");
       } else if (c.condition === "unremodeled") {
-        sheet.getRange(rowNum, 1, 1, 5)
+        sheet.getRange(rowNum, 1, 1, 6)
           .setBackground("#fff9c4")
           .setBorder(true, true, true, true, false, false, "#cccccc", SpreadsheetApp.BorderStyle.SOLID);
         sheet.getRange(rowNum, 1).setNote("Unremodeled comp");
       } else {
-        sheet.getRange(rowNum, 1, 1, 5)
+        sheet.getRange(rowNum, 1, 1, 6)
           .setBorder(true, true, true, true, false, false, "#cccccc", SpreadsheetApp.BorderStyle.SOLID);
       }
     });
@@ -326,6 +333,7 @@ function generateFlipAnalysis(comps) {
   sheet.setColumnWidth(3, 100);
   sheet.setColumnWidth(4, 120);
   sheet.setColumnWidth(5, 100);
+  sheet.setColumnWidth(6, 80); // Link column
 
   Logger.log("✅ Flip Analysis finalized with enhanced formatting.");
 }

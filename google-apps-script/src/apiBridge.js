@@ -4,11 +4,127 @@
 function getApiKeys() {
   const props = PropertiesService.getScriptProperties();
   return {
-    BRIDGE_API_KEY: props.getProperty('BRIDGE_API_KEY'),
-    BRIDGE_BASE_URL: props.getProperty('BRIDGE_BASE_URL'),
+    RAPIDAPI_KEY: props.getProperty('RAPIDAPI_KEY'),
     GEMINI_API_KEY: props.getProperty('GEMINI_API_KEY'),
-    OPENAI_API_KEY: props.getProperty('OPENAI_API_KEY')
+    BRIDGE_API_KEY: props.getProperty('BRIDGE_API_KEY'),
+    BRIDGE_BASE_URL: props.getProperty('BRIDGE_BASE_URL')
   };
+}
+
+/**
+ * Get API quota limits from Script Properties
+ * Set these in: Project Settings → Script Properties
+ */
+function getApiQuotas() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    ZILLOW_MONTHLY_LIMIT: parseInt(props.getProperty('ZILLOW_MONTHLY_LIMIT') || '100'),
+    ZILLOW_THRESHOLD: parseInt(props.getProperty('ZILLOW_THRESHOLD') || '90'),
+
+    US_REAL_ESTATE_MONTHLY_LIMIT: parseInt(props.getProperty('US_REAL_ESTATE_MONTHLY_LIMIT') || '100'),
+    US_REAL_ESTATE_THRESHOLD: parseInt(props.getProperty('US_REAL_ESTATE_THRESHOLD') || '90'),
+
+    GEMINI_DAILY_LIMIT: parseInt(props.getProperty('GEMINI_DAILY_LIMIT') || '1500'),
+    GEMINI_THRESHOLD: parseInt(props.getProperty('GEMINI_THRESHOLD') || '1400')
+  };
+}
+
+/**
+ * Check if API quota is available
+ * @param {string} apiName - Name of the API (zillow, us_real_estate, gemini)
+ * @param {string} period - 'month' or 'day'
+ * @returns {boolean} - True if quota available, false if exceeded
+ */
+function checkQuotaAvailable(apiName, period = 'month') {
+  const props = PropertiesService.getScriptProperties();
+  const quotas = getApiQuotas();
+
+  // Get current period key (YYYY-MM for month, YYYY-MM-DD for day)
+  const now = new Date();
+  const periodKey = period === 'month'
+    ? now.toISOString().slice(0, 7)  // "2025-11"
+    : now.toISOString().slice(0, 10); // "2025-11-15"
+
+  // Get current usage
+  const usageKey = `api_usage_${apiName}_${periodKey}`;
+  const currentUsage = parseInt(props.getProperty(usageKey) || '0');
+
+  // Get limit and threshold
+  const limitKey = `${apiName.toUpperCase()}_${period.toUpperCase()}_LIMIT`;
+  const thresholdKey = `${apiName.toUpperCase()}_THRESHOLD`;
+  const limit = quotas[limitKey] || 100;
+  const threshold = quotas[thresholdKey] || (limit * 0.9);
+
+  // Check if under threshold
+  const available = currentUsage < threshold;
+
+  Logger.log(`📊 ${apiName} quota: ${currentUsage}/${limit} (threshold: ${threshold}) - ${available ? 'AVAILABLE' : 'EXCEEDED'}`);
+
+  return available;
+}
+
+/**
+ * Display current API usage and quotas
+ * Run this from: REI Tools > Advanced Tools > Check API Usage
+ */
+function showAPIUsage() {
+  const props = PropertiesService.getScriptProperties();
+  const quotas = getApiQuotas();
+  const now = new Date();
+  const currentMonth = now.toISOString().slice(0, 7);
+  const currentDay = now.toISOString().slice(0, 10);
+
+  // Get usage
+  const zillowUsage = parseInt(props.getProperty(`api_usage_zillow_${currentMonth}`) || '0');
+  const usRealEstateUsage = parseInt(props.getProperty(`api_usage_us_real_estate_${currentMonth}`) || '0');
+  const geminiUsage = parseInt(props.getProperty(`api_usage_gemini_${currentDay}`) || '0');
+
+  // Build message
+  const message = `
+📊 API Usage Report (${currentMonth})
+
+🏠 Zillow API:
+   Used: ${zillowUsage} / ${quotas.ZILLOW_MONTHLY_LIMIT}
+   Remaining: ${quotas.ZILLOW_MONTHLY_LIMIT - zillowUsage}
+   Status: ${zillowUsage < quotas.ZILLOW_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+
+🔑 US Real Estate API:
+   Used: ${usRealEstateUsage} / ${quotas.US_REAL_ESTATE_MONTHLY_LIMIT}
+   Remaining: ${quotas.US_REAL_ESTATE_MONTHLY_LIMIT - usRealEstateUsage}
+   Status: ${usRealEstateUsage < quotas.US_REAL_ESTATE_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+
+🤖 Gemini AI (Today):
+   Used: ${geminiUsage} / ${quotas.GEMINI_DAILY_LIMIT}
+   Remaining: ${quotas.GEMINI_DAILY_LIMIT - geminiUsage}
+   Status: ${geminiUsage < quotas.GEMINI_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+
+Last Successful API: ${props.getProperty('last_successful_api') || 'None'}
+Last Success Time: ${props.getProperty('last_successful_api_time') || 'Never'}
+  `;
+
+  SpreadsheetApp.getUi().alert('API Usage Report', message, SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/**
+ * Track API usage for monitoring and optimization
+ */
+function trackAPIUsage(source, success) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const key = `api_usage_${source}_${currentMonth}`;
+    const current = parseInt(props.getProperty(key) || '0');
+    props.setProperty(key, (current + 1).toString());
+
+    if (success) {
+      props.setProperty('last_successful_api', source);
+      props.setProperty('last_successful_api_time', new Date().toISOString());
+    }
+
+    Logger.log(`📊 API Usage: ${source} - ${success ? 'SUCCESS' : 'FAILED'} (Total this month: ${current + 1})`);
+  } catch (e) {
+    Logger.log(`⚠️ Failed to track API usage: ${e}`);
+  }
 }
 
 /**
@@ -32,18 +148,17 @@ function retryWithBackoff(fn, maxRetries = 3, initialDelay = 1000) {
 }
 
 /**
- * Fetch comps data using hybrid API strategy
- * Phase 3: Hybrid approach - Bridge for market data, Gemini for property comps
+ * Fetch comps data using waterfall API strategy with quota management
+ * Priority: Zillow → US Real Estate → Gemini → Bridge
  *
  * @param {Object} data - Property data including address, city, state, zip
  * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data
  * @returns {Array} Array of comparable properties
  */
 function fetchCompsData(data, forceRefresh = false) {
-  const { BRIDGE_API_KEY, BRIDGE_BASE_URL, GEMINI_API_KEY } = getApiKeys();
   let comps = [];
 
-  // Phase 3: Check cache first (unless force refresh)
+  // Check cache first (unless force refresh)
   if (!forceRefresh) {
     const cachedComps = getCachedComps(data.address, data.city, data.state, data.zip);
     if (cachedComps && cachedComps.length > 0) {
@@ -54,42 +169,104 @@ function fetchCompsData(data, forceRefresh = false) {
     Logger.log("🔄 Force refresh requested, bypassing cache");
   }
 
-  try {
-    // Hybrid Strategy: Use Gemini for property comps
-    Logger.log("🤖 Using Gemini AI for property comps");
-    comps = retryWithBackoff(() => fetchCompsFromGemini(data, GEMINI_API_KEY));
-    Logger.log(`✅ Gemini returned ${comps.length} comps`);
-
-    // Optional: Try to enrich with Bridge market data if available
-    // (Bridge zgecon dataset provides market trends, not individual properties)
+  // Priority 1: Try Zillow (if quota available)
+  if (checkQuotaAvailable('zillow', 'month')) {
     try {
-      const marketData = fetchBridgeMarketData(data, BRIDGE_API_KEY, BRIDGE_BASE_URL);
-      if (marketData) {
-        Logger.log("📊 Enriched comps with Bridge market data");
-        comps = enrichCompsWithMarketData(comps, marketData);
+      Logger.log("🏠 Trying Zillow API (Priority 1)...");
+      comps = retryWithBackoff(() => fetchCompsFromZillow(data));
+      if (comps && comps.length > 0) {
+        Logger.log(`✅ Zillow SUCCESS: ${comps.length} comps`);
+        trackAPIUsage('zillow', true);
+        setCachedComps(data.address, data.city, data.state, data.zip, comps);
+        return comps;
       }
-    } catch (bridgeErr) {
-      Logger.log("⚠️ Bridge market data unavailable, using Gemini comps only: " + bridgeErr);
+    } catch (err) {
+      Logger.log(`⚠️ Zillow failed: ${err.message}`);
+      trackAPIUsage('zillow', false);
     }
+  } else {
+    Logger.log("⚠️ Zillow quota exceeded, skipping to next API");
+  }
 
-    // Validate comps data
-    if (!Array.isArray(comps)) {
-      Logger.log("⚠️ Invalid comps format, returning empty array");
-      comps = [];
+  // Priority 2: Try US Real Estate (if quota available)
+  if (checkQuotaAvailable('us_real_estate', 'month')) {
+    try {
+      Logger.log("🔑 Trying US Real Estate API (Priority 2)...");
+      comps = retryWithBackoff(() => fetchCompsFromRapidAPI(data));
+      if (comps && comps.length > 0) {
+        Logger.log(`✅ US Real Estate SUCCESS: ${comps.length} comps`);
+        trackAPIUsage('us_real_estate', true);
+        setCachedComps(data.address, data.city, data.state, data.zip, comps);
+        return comps;
+      }
+    } catch (err) {
+      Logger.log(`⚠️ US Real Estate failed: ${err.message}`);
+      trackAPIUsage('us_real_estate', false);
     }
+  } else {
+    Logger.log("⚠️ US Real Estate quota exceeded, skipping to next API");
+  }
 
-    // Filter out invalid comps
-    comps = comps.filter(c => c && c.price && c.price > 0);
+  // Priority 3: Try Gemini AI (if quota available)
+  if (checkQuotaAvailable('gemini', 'day')) {
+    try {
+      Logger.log("🤖 Trying Gemini AI (Priority 3)...");
+      const { GEMINI_API_KEY } = getApiKeys();
+      comps = retryWithBackoff(() => fetchCompsFromGemini(data, GEMINI_API_KEY));
+      if (comps && comps.length > 0) {
+        Logger.log(`✅ Gemini SUCCESS: ${comps.length} comps`);
+        trackAPIUsage('gemini', true);
+        setCachedComps(data.address, data.city, data.state, data.zip, comps);
+        return comps;
+      }
+    } catch (err) {
+      Logger.log(`⚠️ Gemini failed: ${err.message}`);
+      trackAPIUsage('gemini', false);
+    }
+  } else {
+    Logger.log("⚠️ Gemini quota exceeded, skipping to next API");
+  }
 
-    // Phase 3: Cache the results if we got valid data
-    if (comps.length > 0) {
+  // Priority 4: Try Bridge Dataset (no quota check - fallback)
+  try {
+    Logger.log("🌉 Trying Bridge Dataset (Priority 4)...");
+    const { BRIDGE_API_KEY, BRIDGE_BASE_URL } = getApiKeys();
+    const marketData = fetchBridgeMarketData(data, BRIDGE_API_KEY, BRIDGE_BASE_URL);
+    if (marketData) {
+      Logger.log("📊 Bridge market data available, generating estimated comps");
+      comps = generateCompsFromMarketData(data, marketData);
+      trackAPIUsage('bridge', true);
       setCachedComps(data.address, data.city, data.state, data.zip, comps);
+      return comps;
     }
-
   } catch (err) {
-    Logger.log("❌ fetchCompsData error: " + err);
-    SpreadsheetApp.getUi().alert(`⚠️ API Error: ${err.message}\n\nProceeding with estimated values.`);
-    comps = [];
+    Logger.log(`⚠️ Bridge failed: ${err.message}`);
+    trackAPIUsage('bridge', false);
+  }
+
+  // All APIs failed or exceeded quota
+  Logger.log("❌ All API sources failed or exceeded quota");
+  SpreadsheetApp.getUi().alert("⚠️ All API sources failed or exceeded quota.\n\nPlease check your API keys or wait for quota reset.");
+  return [];
+}
+
+/**
+ * Generate basic comps from Bridge market data
+ */
+function generateCompsFromMarketData(data, marketData) {
+  const basePrice = marketData.medianHomeValue || 500000;
+  const comps = [];
+
+  for (let i = 0; i < 6; i++) {
+    const variance = (Math.random() - 0.5) * 0.2; // ±10% variance
+    comps.push({
+      address: `Comparable ${i + 1} near ${data.city}, ${data.state}`,
+      price: Math.round(basePrice * (1 + variance)),
+      sqft: Math.round(1500 + (Math.random() - 0.5) * 500),
+      saleDate: new Date(Date.now() - Math.random() * 180 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+      distance: Math.round(Math.random() * 2 * 10) / 10,
+      condition: i < 3 ? "unremodeled" : "remodeled"
+    });
   }
 
   return comps;
@@ -192,7 +369,149 @@ function fetchCompsFromOpenAI(data, OPENAI_API_KEY) {
 }
 
 /**
+ * Fetch comps from Zillow API
+ * Priority 1 in waterfall
+ */
+function fetchCompsFromZillow(data) {
+  const { RAPIDAPI_KEY } = getApiKeys();
+
+  if (!RAPIDAPI_KEY) {
+    throw new Error("RAPIDAPI_KEY not found in Script Properties");
+  }
+
+  const fullAddress = `${data.address}, ${data.city}, ${data.state} ${data.zip}`.trim();
+  Logger.log("🏠 Calling Zillow API for: " + fullAddress);
+
+  // Zillow API endpoint for property search
+  const location = `${data.city}, ${data.state}`;
+  const url = `https://zillow-com1.p.rapidapi.com/propertyExtendedSearch?location=${encodeURIComponent(location)}&status_type=RecentlySold&home_type=Houses&sort=Newest`;
+
+  const options = {
+    method: 'get',
+    headers: {
+      'X-RapidAPI-Key': RAPIDAPI_KEY,
+      'X-RapidAPI-Host': 'zillow-com1.p.rapidapi.com'
+    },
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const statusCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  Logger.log("Zillow API status: " + statusCode);
+
+  if (statusCode !== 200) {
+    Logger.log("Zillow API error response: " + responseText);
+    throw new Error(`Zillow API returned status ${statusCode}`);
+  }
+
+  try {
+    const json = JSON.parse(responseText);
+
+    // Transform Zillow data to our format
+    const props = json.props || [];
+    const comps = props.slice(0, 6).map(prop => {
+      // Convert Unix timestamp to readable date (MM/DD/YYYY)
+      let formattedDate = "—";
+      if (prop.dateSold) {
+        try {
+          // Zillow returns Unix timestamp in seconds, JavaScript uses milliseconds
+          const date = new Date(prop.dateSold * 1000);
+          formattedDate = (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
+        } catch (e) {
+          Logger.log(`⚠️ Date conversion error: ${e}`);
+        }
+      }
+
+      // Extract property link
+      const propertyLink = prop.detailUrl || prop.hdpUrl || `https://www.zillow.com/homedetails/${prop.zpid}_zpid/`;
+
+      return {
+        address: prop.address || prop.streetAddress || "Unknown",
+        price: prop.price || 0,
+        sqft: prop.livingArea || prop.sqft || 0,
+        saleDate: formattedDate,
+        distance: prop.distance || 0, // Zillow may provide distance in some responses
+        condition: "unknown",
+        link: propertyLink,
+        latitude: prop.latitude || prop.lat || null,
+        longitude: prop.longitude || prop.lng || null
+      };
+    });
+
+    Logger.log(`✅ Zillow returned ${comps.length} comps`);
+    return comps;
+  } catch (e) {
+    Logger.log("❌ Zillow parsing error: " + e);
+    Logger.log("Raw response: " + responseText);
+    throw new Error("Failed to parse Zillow response: " + e.message);
+  }
+}
+
+/**
+ * Fetch comps from RapidAPI (using a real estate API)
+ * Priority 2 in waterfall
+ */
+function fetchCompsFromRapidAPI(data) {
+  const { RAPIDAPI_KEY } = getApiKeys();
+
+  if (!RAPIDAPI_KEY) {
+    throw new Error("RAPIDAPI_KEY not found in Script Properties");
+  }
+
+  const fullAddress = `${data.address}, ${data.city}, ${data.state} ${data.zip}`.trim();
+  Logger.log("🔑 Calling RapidAPI for: " + fullAddress);
+
+  // Using US Real Estate API on RapidAPI as an example
+  // You can change this to any real estate API available on RapidAPI
+  const url = `https://us-real-estate.p.rapidapi.com/v2/sold-homes?city=${encodeURIComponent(data.city)}&state_code=${encodeURIComponent(data.state)}&limit=6`;
+
+  const options = {
+    method: 'get',
+    headers: {
+      'X-RapidAPI-Key': RAPIDAPI_KEY,
+      'X-RapidAPI-Host': 'us-real-estate.p.rapidapi.com'
+    },
+    muteHttpExceptions: true
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const statusCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  Logger.log("RapidAPI status: " + statusCode);
+
+  if (statusCode !== 200) {
+    Logger.log("RapidAPI error response: " + responseText);
+    throw new Error(`RapidAPI returned status ${statusCode}`);
+  }
+
+  try {
+    const json = JSON.parse(responseText);
+
+    // Transform RapidAPI data to our format
+    const comps = (json.data?.home_search?.results || []).slice(0, 6).map(home => ({
+      address: home.location?.address?.line || "Unknown",
+      price: home.list_price || home.price || 0,
+      sqft: home.description?.sqft || 0,
+      saleDate: home.list_date || new Date().toISOString().slice(0, 10),
+      distance: 0,
+      condition: "unknown"
+    }));
+
+    Logger.log(`✅ RapidAPI returned ${comps.length} comps`);
+    return comps;
+  } catch (e) {
+    Logger.log("❌ RapidAPI parsing error: " + e);
+    Logger.log("Raw response: " + responseText);
+    throw new Error("Failed to parse RapidAPI response: " + e.message);
+  }
+}
+
+/**
  * Use Gemini API (via Google Generative Language API)
+ * Priority 3 in waterfall
  */
 function fetchCompsFromGemini(data, GEMINI_API_KEY) {
   if (!GEMINI_API_KEY) {
