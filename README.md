@@ -57,7 +57,7 @@ Quick analysis with essential metrics - perfect for fast property evaluation.
 - Auto-populated expenses (tax & insurance)
 - Analysis summary panel
 
-[📖 Read the Simple Mode Guide](docs/SIMPLE_MODE_GUIDE.md)
+[📖 Read the Simple Mode Guide](google-apps-script/docs/SIMPLE_MODE_GUIDE.md)
 
 ### Advanced Mode
 Unlock full power with sophisticated features for complex deals.
@@ -74,7 +74,7 @@ Unlock full power with sophisticated features for complex deals.
 - Partnership management (multi-investor tracking)
 - Advanced comps filtering
 
-[📖 Read the Advanced Mode Guide](docs/ADVANCED_MODE_GUIDE.md)
+[📖 Read the Advanced Mode Guide](google-apps-script/docs/ADVANCED_MODE_GUIDE.md)
 
 **Switch modes:** REI Tools > Toggle Simple/Advanced Mode
 
@@ -112,7 +112,7 @@ Unlock full power with sophisticated features for complex deals.
 - Delay and issue tracking
 - Change order documentation
 
-[📖 Project Tracker User Guide](docs/PROJECT_TRACKER_GUIDE.md)
+[📖 Project Tracker User Guide](google-apps-script/docs/PROJECT_TRACKER_GUIDE.md)
 
 ### 🤝 Partnership Tools (Advanced Mode)
 - Multi-partner investment tracking
@@ -123,27 +123,27 @@ Unlock full power with sophisticated features for complex deals.
 - Distribution projections
 - Partnership IRR calculations
 
-[📖 Partnership Management User Guide](docs/PARTNER_MANAGEMENT_GUIDE.md)
+[📖 Partnership Management User Guide](google-apps-script/docs/PARTNER_MANAGEMENT_GUIDE.md)
 
 ## Documentation
 
 ### User Guides
-- **[Simple Mode Guide](docs/SIMPLE_MODE_GUIDE.md)** - Quick start and essential features
-- **[Advanced Mode Guide](docs/ADVANCED_MODE_GUIDE.md)** - Complete feature reference
-- **[Project Tracker Guide](docs/PROJECT_TRACKER_GUIDE.md)** - Renovation management
-- **[Partnership Management Guide](docs/PARTNER_MANAGEMENT_GUIDE.md)** - Multi-investor tracking
+- **[Simple Mode Guide](google-apps-script/docs/SIMPLE_MODE_GUIDE.md)** - Quick start and essential features
+- **[Advanced Mode Guide](google-apps-script/docs/ADVANCED_MODE_GUIDE.md)** - Complete feature reference
+- **[Project Tracker Guide](google-apps-script/docs/PROJECT_TRACKER_GUIDE.md)** - Renovation management
+- **[Partnership Management Guide](google-apps-script/docs/PARTNER_MANAGEMENT_GUIDE.md)** - Multi-investor tracking
 
 ### Technical Documentation
-- **[Dynamic Fields Guide](docs/DYNAMIC_FIELDS_GUIDE.md)** - Field mapping system
-- **[Improvement Roadmap](docs/IMPROVEMENT_ROADMAP.md)** - 8-phase enhancement plan
+- **[Dynamic Fields Guide](google-apps-script/docs/DYNAMIC_FIELDS_GUIDE.md)** - Field mapping system
+- **[Improvement Roadmap](google-apps-script/docs/IMPROVEMENT_ROADMAP.md)** - 8-phase enhancement plan
 
 ### Implementation Notes
-- **[Phase 1 Summary](docs/PHASE_1_SUMMARY.md)** - Dynamic fields & validation
-- **[Phase 2 Summary](docs/PHASE_2_SUMMARY.md)** - Advanced metrics & tax analysis
-- **[Phase 3 Summary](docs/PHASE_3_SUMMARY.md)** - Automation & smart features
-- **[Phase 4 Summary](docs/PHASE_4_SUMMARY.md)** - Dashboard & UX improvements
-- **[Phase 5 Summary](docs/PHASE_5_SUMMARY.md)** - Advanced analysis tools
-- **[Partnership Management Plan](docs/PARTNERSHIP_MANAGEMENT_PLAN.md)** - Technical implementation
+- **[Phase 1 Summary](google-apps-script/docs/PHASE_1_SUMMARY.md)** - Dynamic fields & validation
+- **[Phase 2 Summary](google-apps-script/docs/PHASE_2_SUMMARY.md)** - Advanced metrics & tax analysis
+- **[Phase 3 Summary](google-apps-script/docs/PHASE_3_SUMMARY.md)** - Automation & smart features
+- **[Phase 4 Summary](google-apps-script/docs/PHASE_4_SUMMARY.md)** - Dashboard & UX improvements
+- **[Phase 5 Summary](google-apps-script/docs/PHASE_5_SUMMARY.md)** - Advanced analysis tools
+- **[Partnership Management Plan](google-apps-script/docs/PARTNERSHIP_MANAGEMENT_PLAN.md)** - Technical implementation
 
 ## Quick Reference
 
@@ -249,22 +249,7 @@ Real_Estate_Analysis_Tool/
 ├── web-app/                   # Frontend (PWA) - Coming Soon
 │   └── (To be built)
 │
-├── docs/                      # Documentation
-│   ├── SIMPLE_MODE_GUIDE.md
-│   ├── ADVANCED_MODE_GUIDE.md
-│   ├── PROJECT_TRACKER_GUIDE.md
-│   ├── PARTNER_MANAGEMENT_GUIDE.md
-│   ├── DYNAMIC_FIELDS_GUIDE.md
-│   ├── IMPROVEMENT_ROADMAP.md
-│   ├── PHASE_1_SUMMARY.md
-│   ├── PHASE_2_SUMMARY.md
-│   ├── PHASE_3_SUMMARY.md
-│   ├── PHASE_4_SUMMARY.md
-│   ├── PHASE_5_SUMMARY.md
-│   └── PARTNERSHIP_MANAGEMENT_PLAN.md
-│
 ├── MIGRATION_PLAN.md          # PWA migration roadmap
-├── RELEASE_NOTES.md
 └── README.md                  # This file
 ```
 
@@ -295,7 +280,7 @@ const purchasePrice = inputs.getRange("B8").getValue();
 const purchasePrice = getField("purchasePrice", 0);
 ```
 
-See [Dynamic Fields Guide](docs/DYNAMIC_FIELDS_GUIDE.md) for details.
+See [Dynamic Fields Guide](google-apps-script/docs/DYNAMIC_FIELDS_GUIDE.md) for details.
 
 ## Current Status
 
@@ -315,7 +300,7 @@ See [Dynamic Fields Guide](docs/DYNAMIC_FIELDS_GUIDE.md) for details.
 - Phase 7: Portfolio tracking and comparison
 - Phase 8: Export and reporting (PDF, CSV, email)
 
-See [Improvement Roadmap](docs/IMPROVEMENT_ROADMAP.md) for the complete plan.
+See [Improvement Roadmap](google-apps-script/docs/IMPROVEMENT_ROADMAP.md) for the complete plan.
 
 ## Key Assumptions
 
@@ -372,7 +357,7 @@ Three modes available (REI Tools > Advanced Tools > Protect/Unlock):
 
 ### Getting Help
 
-1. Check the [user guides](docs/) for detailed instructions
+1. Check the [user guides](google-apps-script/docs/) for detailed instructions
 2. Review Google Apps Script logs (View > Logs)
 3. Run `validateFieldMappings()` to diagnose field issues
 4. Verify API credentials in Script Properties
@@ -381,7 +366,7 @@ Three modes available (REI Tools > Advanced Tools > Protect/Unlock):
 
 This is a personal project, but suggestions and improvements are welcome:
 
-1. Review the [Improvement Roadmap](docs/IMPROVEMENT_ROADMAP.md)
+1. Review the [Improvement Roadmap](google-apps-script/docs/IMPROVEMENT_ROADMAP.md)
 2. Check existing documentation
 3. Test changes thoroughly
 4. Update documentation as needed
@@ -398,6 +383,6 @@ This project is for personal use. Please respect API provider terms of service.
 
 ---
 
-**Ready to analyze your first property?** Start with the [Simple Mode Guide](docs/SIMPLE_MODE_GUIDE.md) and run your first analysis in under 5 minutes.
+**Ready to analyze your first property?** Start with the [Simple Mode Guide](google-apps-script/docs/SIMPLE_MODE_GUIDE.md) and run your first analysis in under 5 minutes.
 
-**Need advanced features?** Check out the [Advanced Mode Guide](docs/ADVANCED_MODE_GUIDE.md) for IRR, tax planning, partnership tracking, and more.
+**Need advanced features?** Check out the [Advanced Mode Guide](google-apps-script/docs/ADVANCED_MODE_GUIDE.md) for IRR, tax planning, partnership tracking, and more.
