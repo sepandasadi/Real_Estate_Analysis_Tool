@@ -18,13 +18,13 @@ export interface PropertyData {
   state: string;
   zip: string;
   purchasePrice: number;
-  rehabCost?: number;
-  arv?: number;
-  monthlyRent?: number;
   downPayment?: number;
-  interestRate?: number;
+  loanInterestRate?: number;
   loanTerm?: number;
-  holdingMonths?: number;
+  rehabCost?: number;
+  monthsToFlip?: number;
+  cashInvestment?: number;
+  helocInterest?: number;
 }
 
 export interface ApiUsageData {

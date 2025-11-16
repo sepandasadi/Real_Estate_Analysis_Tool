@@ -51,12 +51,13 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
 
   const purchasePrice = data.purchasePrice;
   const rehabCost = data.rehabCost || 0;
-  const arv = data.arv || purchasePrice * 1.3;
-  const monthlyRent = data.monthlyRent || purchasePrice * 0.01;
-  const downPayment = data.downPayment || purchasePrice * 0.25;
-  const interestRate = data.interestRate || 7.0;
+  const arv = purchasePrice * 1.3; // Backend calculates ARV
+  const monthlyRent = purchasePrice * 0.01; // Backend calculates rent estimate
+  const downPaymentPercent = data.downPayment || 25;
+  const downPayment = purchasePrice * (downPaymentPercent / 100);
+  const loanInterestRate = data.loanInterestRate || 7.0;
   const loanTerm = data.loanTerm || 30;
-  const holdingMonths = data.holdingMonths || 6;
+  const monthsToFlip = data.monthsToFlip || 6;
 
   // Flip calculations
   const totalInvestment = purchasePrice + rehabCost;
@@ -66,15 +67,16 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
 
   // Rental calculations
   const loanAmount = purchasePrice - downPayment;
-  const monthlyRate = interestRate / 100 / 12;
+  const monthlyRate = loanInterestRate / 100 / 12;
   const numPayments = loanTerm * 12;
   const monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
 
-  const propertyTax = data.propertyTax || (purchasePrice * 0.012 / 12);
-  const insurance = data.insurance || (purchasePrice * 0.005 / 12);
-  const maintenance = data.maintenance || (monthlyRent * 0.10);
-  const vacancy = data.vacancy || (monthlyRent * 0.08);
-  const hoaFees = data.hoaFees || 0;
+  // Backend calculates these values
+  const propertyTax = purchasePrice * 0.012 / 12;
+  const insurance = purchasePrice * 0.005 / 12;
+  const maintenance = monthlyRent * 0.10;
+  const vacancy = monthlyRent * 0.08;
+  const hoaFees = 0;
 
   const totalExpenses = monthlyPayment + propertyTax + insurance + maintenance + vacancy + hoaFees;
   const cashFlow = monthlyRent - totalExpenses;
@@ -235,8 +237,8 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
         sellingCosts,
         netProfit,
         roi,
-        holdingMonths,
-        timeline: `${holdingMonths} months`
+        holdingMonths: monthsToFlip,
+        timeline: `${monthsToFlip} months`
       },
       rental: {
         purchasePrice,

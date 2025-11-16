@@ -12,24 +12,16 @@ export interface PropertyFormData {
   // Purchase Information
   purchasePrice: number;
   downPayment?: number;
-  closingCosts?: number;
 
   // Loan Details
-  interestRate?: number;
+  loanInterestRate?: number;
   loanTerm?: number; // in years
 
   // Flip Analysis
   rehabCost?: number;
-  arv?: number; // After Repair Value
-  holdingMonths?: number;
-
-  // Rental Analysis
-  monthlyRent?: number;
-  propertyTax?: number;
-  insurance?: number;
-  hoaFees?: number;
-  maintenance?: number;
-  vacancy?: number;
+  monthsToFlip?: number;
+  cashInvestment?: number;
+  helocInterest?: number;
 }
 
 export interface PropertyAnalysisResult {
@@ -60,6 +52,10 @@ export interface ComparableProperty {
   saleDate?: string;
   distance?: number;
   propertyUrl?: string;
+  condition?: 'remodeled' | 'unremodeled' | 'unknown';
+  dataSource?: 'zillow' | 'api' | 'gemini' | 'synthetic';
+  isReal?: boolean;
+  qualityScore?: number;
 }
 
 export interface FlipAnalysis {

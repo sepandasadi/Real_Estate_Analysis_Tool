@@ -15,18 +15,12 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
     zip: initialData?.zip || '',
     purchasePrice: initialData?.purchasePrice || 0,
     downPayment: initialData?.downPayment,
-    closingCosts: initialData?.closingCosts,
-    interestRate: initialData?.interestRate || 7.0,
+    loanInterestRate: initialData?.loanInterestRate || 7.0,
     loanTerm: initialData?.loanTerm || 30,
     rehabCost: initialData?.rehabCost,
-    arv: initialData?.arv,
-    holdingMonths: initialData?.holdingMonths || 6,
-    monthlyRent: initialData?.monthlyRent,
-    propertyTax: initialData?.propertyTax,
-    insurance: initialData?.insurance,
-    hoaFees: initialData?.hoaFees,
-    maintenance: initialData?.maintenance,
-    vacancy: initialData?.vacancy,
+    monthsToFlip: initialData?.monthsToFlip || 6,
+    cashInvestment: initialData?.cashInvestment,
+    helocInterest: initialData?.helocInterest,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof PropertyFormData, string>>>({});
@@ -313,14 +307,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="interestRate" className="block text-sm font-medium text-gray-700 mb-1">
-              Interest Rate (%)
+            <label htmlFor="loanInterestRate" className="block text-sm font-medium text-gray-700 mb-1">
+              Loan Interest Rate (%)
             </label>
             <input
               type="number"
-              id="interestRate"
-              name="interestRate"
-              value={formData.interestRate || ''}
+              id="loanInterestRate"
+              name="loanInterestRate"
+              value={formData.loanInterestRate || ''}
               onChange={handleChange}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 hover:border-primary-300 focus:border-primary-500 transition-all duration-200"
               placeholder="7.0"
@@ -383,20 +377,57 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
 
 
             <div>
-              <label htmlFor="holdingMonths" className="block text-sm font-medium text-gray-700 mb-1">
-                Holding Period (months)
+              <label htmlFor="monthsToFlip" className="block text-sm font-medium text-gray-700 mb-1">
+                Months to Flip
               </label>
               <input
                 type="number"
-                id="holdingMonths"
-                name="holdingMonths"
-                value={formData.holdingMonths || ''}
+                id="monthsToFlip"
+                name="monthsToFlip"
+                value={formData.monthsToFlip || ''}
                 onChange={handleChange}
                 className="w-full px-4 py-3 border border-blue-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 focus:border-blue-500 transition-all duration-200"
                 placeholder="6"
                 min="1"
                 max="24"
                 step="1"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="cashInvestment" className="block text-sm font-medium text-gray-700 mb-1">
+                Cash Investment ($)
+              </label>
+              <input
+                type="number"
+                id="cashInvestment"
+                name="cashInvestment"
+                value={formData.cashInvestment || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-blue-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 focus:border-blue-500 transition-all duration-200"
+                placeholder="75000"
+                min="0"
+                step="1000"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <div>
+              <label htmlFor="helocInterest" className="block text-sm font-medium text-gray-700 mb-1">
+                HELOC / Loan Interest (%)
+              </label>
+              <input
+                type="number"
+                id="helocInterest"
+                name="helocInterest"
+                value={formData.helocInterest || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-blue-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 hover:border-blue-400 focus:border-blue-500 transition-all duration-200"
+                placeholder="7.0"
+                min="0"
+                max="20"
+                step="0.1"
               />
             </div>
           </div>

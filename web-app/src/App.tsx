@@ -2,8 +2,15 @@ import { useEffect, useState } from 'react';
 import { ApiUsageData } from './services/api';
 import { mockAnalyzeProperty, getMockApiUsage } from './services/mockApi';
 import { PropertyFormData, PropertyAnalysisResult } from './types/property';
+import { TabMode } from './types/tabs';
 import PropertyForm from './components/PropertyForm';
-import AnalysisResults from './components/AnalysisResults';
+import TabNavigation from './components/TabNavigation';
+import InputsSummaryTab from './components/tabs/InputsSummaryTab';
+import FlipAnalysisTab from './components/tabs/FlipAnalysisTab';
+import RentalAnalysisTab from './components/tabs/RentalAnalysisTab';
+import TaxBenefitsTab from './components/tabs/TaxBenefitsTab';
+import AmortizationTab from './components/tabs/AmortizationTab';
+import CompsTab from './components/tabs/CompsTab';
 
 type ViewMode = 'form' | 'results';
 
@@ -12,7 +19,10 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [analysisResults, setAnalysisResults] = useState<PropertyAnalysisResult | null>(null);
+  const [formData, setFormData] = useState<PropertyFormData | null>(null);
   const [apiUsage, setApiUsage] = useState<ApiUsageData | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('inputs');
+  const [mode, setMode] = useState<TabMode>(TabMode.SIMPLE);
 
   useEffect(() => {
     // Fetch API usage on mount (using mock data for now)
@@ -40,7 +50,9 @@ function App() {
 
       if (response.success && response.data) {
         setAnalysisResults(response.data as PropertyAnalysisResult);
+        setFormData(data);
         setViewMode('results');
+        setActiveTab('inputs'); // Start with inputs summary tab
 
         // Refresh API usage after analysis
         const usageResponse = await getMockApiUsage();
@@ -60,7 +72,60 @@ function App() {
   const handleNewAnalysis = () => {
     setViewMode('form');
     setAnalysisResults(null);
+    setFormData(null);
     setError('');
+    setActiveTab('inputs');
+  };
+
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+  };
+
+  const handleModeChange = (newMode: TabMode) => {
+    setMode(newMode);
+  };
+
+  const renderTabContent = () => {
+    if (!analysisResults || !formData) return null;
+
+    switch (activeTab) {
+      case 'inputs':
+        return <InputsSummaryTab formData={formData} results={analysisResults} onEdit={handleNewAnalysis} />;
+      case 'flip':
+        return analysisResults.flip ? (
+          <FlipAnalysisTab flip={analysisResults.flip} />
+        ) : (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-lg">
+            <p className="text-yellow-800">Flip analysis data not available.</p>
+          </div>
+        );
+      case 'rental':
+        return analysisResults.rental ? (
+          <RentalAnalysisTab rental={analysisResults.rental} />
+        ) : (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-lg">
+            <p className="text-yellow-800">Rental analysis data not available.</p>
+          </div>
+        );
+      case 'tax':
+        return <TaxBenefitsTab results={analysisResults} />;
+      case 'amortization':
+        return analysisResults.rental ? (
+          <AmortizationTab rental={analysisResults.rental} />
+        ) : (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-lg">
+            <p className="text-yellow-800">Amortization schedule requires rental property data.</p>
+          </div>
+        );
+      case 'comps':
+        return <CompsTab comps={analysisResults.comps || []} />;
+      default:
+        return (
+          <div className="bg-gray-50 border-l-4 border-gray-400 p-6 rounded-r-lg">
+            <p className="text-gray-800">This tab is coming soon in Sprint 3 & 4!</p>
+          </div>
+        );
+    }
   };
 
   return (
@@ -139,11 +204,42 @@ function App() {
         )}
 
         {/* Main Content */}
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           {viewMode === 'form' ? (
             <PropertyForm onSubmit={handleFormSubmit} loading={loading} />
           ) : analysisResults ? (
-            <AnalysisResults results={analysisResults} onNewAnalysis={handleNewAnalysis} />
+            <>
+              {/* Header with New Analysis Button */}
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
+                    <p className="text-gray-600 mt-1">
+                      {analysisResults.property.address}, {analysisResults.property.city}, {analysisResults.property.state} {analysisResults.property.zip}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleNewAnalysis}
+                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
+                  >
+                    New Analysis
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Navigation */}
+              <TabNavigation
+                activeTab={activeTab}
+                mode={mode}
+                onTabChange={handleTabChange}
+                onModeChange={handleModeChange}
+              />
+
+              {/* Tab Content */}
+              <div className="animate-fadeIn">
+                {renderTabContent()}
+              </div>
+            </>
           ) : null}
         </div>
 

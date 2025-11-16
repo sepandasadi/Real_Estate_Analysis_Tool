@@ -166,17 +166,68 @@ function generateFlipAnalysis(comps) {
     .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
-  // Calculate ARV from Comps
+  // Calculate ARV from Comps with Enhanced Logic
   let arv = 0;
+  let arvCalculationMethod = "Legacy (No Comps)";
+
   if (!comps || comps.length === 0) {
     if (!simpleMode) {
-      sheet.getRange(row, 1).setValue("⚠️ No comps data returned from API.");
+      sheet.getRange(row, 1).setValue("⚠️ No comps data returned from API. Using legacy calculation.");
     }
-    arv = purchasePrice * 1.1;
+    // Legacy fallback: 20% premium (conservative)
+    arv = purchasePrice * 1.20;
+    arvCalculationMethod = "Legacy (20% premium on purchase price)";
+    Logger.log(`📊 ARV Calculation: Using legacy method - ${arvCalculationMethod}`);
   } else {
+    // Get property details for filtering
+    const propertyDetails = fetchPropertyDetails({
+      address: getField("address", ""),
+      city: getField("city", ""),
+      state: getField("state", ""),
+      zip: getField("zip", "")
+    });
+
+    const targetSqft = propertyDetails.sqft;
+    const targetBeds = propertyDetails.beds;
+    const targetBaths = propertyDetails.baths;
+
+    Logger.log(`🏠 Target Property: ${targetBeds} bed, ${targetBaths} bath, ${targetSqft} sqft`);
+
+    // Filter comps by date (last 2 years only)
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    const recentComps = comps.filter(c => {
+      if (!c.saleDate) return false; // Exclude if no date
+      try {
+        const saleDate = new Date(c.saleDate);
+        return saleDate >= twoYearsAgo;
+      } catch (e) {
+        Logger.log(`⚠️ Invalid date format for comp: ${c.saleDate}`);
+        return false;
+      }
+    });
+
+    Logger.log(`📅 Filtered ${recentComps.length} comps from last 2 years (from ${comps.length} total)`);
+
+    // Filter comps by similarity (±20% sqft, same beds/baths preferred)
+    const filteredComps = recentComps.filter(c => {
+      const sqftMatch = c.sqft && Math.abs(c.sqft - targetSqft) / targetSqft <= 0.2;
+      const bedsMatch = !c.beds || c.beds === targetBeds || Math.abs(c.beds - targetBeds) <= 1;
+      const bathsMatch = !c.baths || c.baths === targetBaths || Math.abs(c.baths - targetBaths) <= 1;
+      return sqftMatch && bedsMatch && bathsMatch;
+    });
+
+    Logger.log(`🔍 Filtered ${filteredComps.length} comps from ${recentComps.length} recent (by sqft, beds, baths)`);
+
+    // Use filtered comps if we have enough, otherwise use all recent comps
+    const compsToUse = filteredComps.length >= 3 ? filteredComps : recentComps;
+
     // Separate remodeled and unremodeled comps
-    const remodeledComps = comps.filter(c => c.condition === "remodeled");
-    const unremodeledComps = comps.filter(c => c.condition === "unremodeled");
+    const remodeledComps = compsToUse.filter(c => c.condition === "remodeled");
+    const unremodeledComps = compsToUse.filter(c => c.condition === "unremodeled");
+
+    Logger.log(`📊 Remodeled comps: ${remodeledComps.length}, Unremodeled comps: ${unremodeledComps.length}`);
 
     // Calculate average prices for each category
     const avgRemodeled = remodeledComps.length > 0
@@ -186,21 +237,37 @@ function generateFlipAnalysis(comps) {
       ? unremodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / unremodeledComps.length
       : 0;
 
-    // Calculate renovation premium
-    let renovationPremium = 1.15; // Default 15% premium
-    if (avgRemodeled > 0 && avgUnremodeled > 0) {
-      renovationPremium = avgRemodeled / avgUnremodeled;
-      Logger.log(`📊 Calculated renovation premium: ${(renovationPremium * 100 - 100).toFixed(1)}%`);
-    }
-
-    // Use remodeled comps average as ARV (or apply premium to unremodeled if no remodeled comps)
-    if (remodeledComps.length > 0) {
+    // Enhanced ARV Calculation Logic (Conservative Approach)
+    if (remodeledComps.length >= 3) {
+      // Best case: We have 3+ remodeled comps - use average with 0% premium
       arv = avgRemodeled;
-    } else if (unremodeledComps.length > 0) {
-      arv = avgUnremodeled * renovationPremium;
+      arvCalculationMethod = `Average of ${remodeledComps.length} remodeled comps (0% premium)`;
+      Logger.log(`✅ ARV Calculation: Using ${remodeledComps.length} remodeled comps average (no premium)`);
+    } else if (remodeledComps.length > 0 && unremodeledComps.length > 0) {
+      // Mixed case: Calculate renovation premium from available data, cap at 25%
+      const renovationPremium = avgRemodeled / avgUnremodeled;
+      const cappedPremium = Math.min(renovationPremium, 1.25);
+      arv = avgUnremodeled * cappedPremium;
+      arvCalculationMethod = `${remodeledComps.length} remodeled + ${unremodeledComps.length} unremodeled comps (${((cappedPremium - 1) * 100).toFixed(1)}% premium, capped at 25%)`;
+      Logger.log(`📊 ARV Calculation: Mixed comps with ${((cappedPremium - 1) * 100).toFixed(1)}% premium (capped at 25%)`);
+    } else if (unremodeledComps.length >= 3) {
+      // Only unremodeled comps: Apply 25% premium
+      arv = avgUnremodeled * 1.25;
+      arvCalculationMethod = `Average of ${unremodeledComps.length} unremodeled comps + 25% renovation premium`;
+      Logger.log(`📊 ARV Calculation: Using ${unremodeledComps.length} unremodeled comps + 25% premium`);
     } else {
-      // Fallback: use all comps average
-      arv = comps.reduce((sum, c) => sum + (c.price || 0), 0) / comps.length;
+      // Fallback: Use all available comps or legacy calculation
+      if (compsToUse.length > 0) {
+        const avgAll = compsToUse.reduce((sum, c) => sum + (c.price || 0), 0) / compsToUse.length;
+        arv = avgAll * 1.20; // Apply 20% premium as conservative estimate
+        arvCalculationMethod = `Average of ${compsToUse.length} mixed comps + 20% premium`;
+        Logger.log(`📊 ARV Calculation: Using ${compsToUse.length} mixed comps + 20% premium`);
+      } else {
+        // Ultimate fallback: Legacy calculation
+        arv = purchasePrice * 1.20;
+        arvCalculationMethod = "Legacy (20% premium on purchase price)";
+        Logger.log(`📊 ARV Calculation: Using legacy method - no suitable comps found`);
+      }
     }
 
     // Sort comps by distance if available
@@ -245,6 +312,16 @@ function generateFlipAnalysis(comps) {
     });
   }
   row += (comps?.length || 1) + 3;
+
+  // Add ARV Calculation Method transparency
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue(`💡 ARV Calculation Method: ${arvCalculationMethod}`)
+    .setFontSize(10)
+    .setFontStyle("italic")
+    .setFontColor("#666666")
+    .setBackground("#f0f0f0")
+    .setHorizontalAlignment("left");
+  row += 2;
 
   // --- Section 4: Profit & ROI ---
   sheet.getRange(row, 1, 1, 2).merge()
