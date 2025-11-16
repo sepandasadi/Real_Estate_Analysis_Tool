@@ -3,14 +3,32 @@ import { ApiUsageData } from './services/api';
 import { mockAnalyzeProperty, getMockApiUsage } from './services/mockApi';
 import { PropertyFormData, PropertyAnalysisResult } from './types/property';
 import { TabMode } from './types/tabs';
+import {
+  clearAllPropertyData,
+  getPropertyHistory,
+  savePropertyToHistory,
+  removePropertyFromHistory,
+  clearPropertyHistory,
+  PropertyHistoryEntry,
+} from './utils/localStorage';
 import PropertyForm from './components/PropertyForm';
-import TabNavigation from './components/TabNavigation';
+import PropertyHistory from './components/PropertyHistory';
+import Sidebar from './components/Sidebar';
+import MenuBar from './components/MenuBar';
 import InputsSummaryTab from './components/tabs/InputsSummaryTab';
 import FlipAnalysisTab from './components/tabs/FlipAnalysisTab';
 import RentalAnalysisTab from './components/tabs/RentalAnalysisTab';
 import TaxBenefitsTab from './components/tabs/TaxBenefitsTab';
 import AmortizationTab from './components/tabs/AmortizationTab';
 import CompsTab from './components/tabs/CompsTab';
+import SensitivityMatrixTab from './components/tabs/SensitivityMatrixTab';
+import ChartsTab from './components/tabs/ChartsTab';
+import AdvancedMetricsTab from './components/tabs/AdvancedMetricsTab';
+import LoanComparisonTab from './components/tabs/LoanComparisonTab';
+import ProjectTrackerTab from './components/tabs/ProjectTrackerTab';
+import PartnershipManagementTab from './components/tabs/PartnershipManagementTab';
+import FilteredCompsTab from './components/tabs/FilteredCompsTab';
+import StateComparisonTab from './components/tabs/StateComparisonTab';
 
 type ViewMode = 'form' | 'results';
 
@@ -23,9 +41,12 @@ function App() {
   const [apiUsage, setApiUsage] = useState<ApiUsageData | null>(null);
   const [activeTab, setActiveTab] = useState<string>('inputs');
   const [mode, setMode] = useState<TabMode>(TabMode.SIMPLE);
+  const [propertyId, setPropertyId] = useState<string>('');
+  const [propertyHistory, setPropertyHistory] = useState<PropertyHistoryEntry[]>([]);
+  const [selectedHistoryData, setSelectedHistoryData] = useState<PropertyFormData | null>(null);
 
   useEffect(() => {
-    // Fetch API usage on mount (using mock data for now)
+    // Fetch API usage and load property history on mount
     const fetchUsage = async () => {
       try {
         const usageResponse = await getMockApiUsage();
@@ -37,7 +58,17 @@ function App() {
       }
     };
 
+    const loadHistory = async () => {
+      try {
+        const history = await getPropertyHistory();
+        setPropertyHistory(history);
+      } catch (err) {
+        console.error('Failed to load property history:', err);
+      }
+    };
+
     fetchUsage();
+    loadHistory();
   }, []);
 
   const handleFormSubmit = async (data: PropertyFormData) => {
@@ -45,6 +76,10 @@ function App() {
     setError('');
 
     try {
+      // Generate unique property ID
+      const newPropertyId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      setPropertyId(newPropertyId);
+
       // Using mock API for now (no CORS issues)
       const response = await mockAnalyzeProperty(data);
 
@@ -53,6 +88,14 @@ function App() {
         setFormData(data);
         setViewMode('results');
         setActiveTab('inputs'); // Start with inputs summary tab
+
+        // Save to history
+        await savePropertyToHistory(data);
+        const updatedHistory = await getPropertyHistory();
+        setPropertyHistory(updatedHistory);
+
+        // Clear selected history data
+        setSelectedHistoryData(null);
 
         // Refresh API usage after analysis
         const usageResponse = await getMockApiUsage();
@@ -69,12 +112,39 @@ function App() {
     }
   };
 
-  const handleNewAnalysis = () => {
+  const handleNewAnalysis = async () => {
+    // Clear IndexedDB for current property
+    if (propertyId) {
+      await clearAllPropertyData(propertyId);
+    }
+
+    // Reset state
     setViewMode('form');
     setAnalysisResults(null);
     setFormData(null);
     setError('');
     setActiveTab('inputs');
+    setPropertyId('');
+    setSelectedHistoryData(null);
+  };
+
+  const handleSelectPropertyFromHistory = (formData: PropertyFormData) => {
+    setSelectedHistoryData(formData);
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleRemovePropertyFromHistory = async (id: string) => {
+    await removePropertyFromHistory(id);
+    const updatedHistory = await getPropertyHistory();
+    setPropertyHistory(updatedHistory);
+  };
+
+  const handleClearHistory = async () => {
+    if (window.confirm('Are you sure you want to clear all search history?')) {
+      await clearPropertyHistory();
+      setPropertyHistory([]);
+    }
   };
 
   const handleTabChange = (tabId: string) => {
@@ -119,20 +189,93 @@ function App() {
         );
       case 'comps':
         return <CompsTab comps={analysisResults.comps || []} />;
+      case 'flip-sensitivity':
+        return analysisResults.flip ? (
+          <SensitivityMatrixTab flip={analysisResults.flip} />
+        ) : (
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-r-lg">
+            <p className="text-yellow-800">Sensitivity matrix requires flip analysis data.</p>
+          </div>
+        );
+      case 'charts':
+        return <ChartsTab flip={analysisResults.flip} rental={analysisResults.rental} />;
+      case 'advanced-metrics':
+        return <AdvancedMetricsTab flip={analysisResults.flip} rental={analysisResults.rental} />;
+      case 'loan-comparison':
+        return <LoanComparisonTab rental={analysisResults.rental} />;
+      case 'project-tracker':
+        return <ProjectTrackerTab propertyId={propertyId} />;
+      case 'partnership':
+        return <PartnershipManagementTab data={analysisResults} propertyId={propertyId} />;
+      case 'filtered-comps':
+        return <FilteredCompsTab comps={analysisResults.comps || []} />;
+      case 'state-comparison':
+        return <StateComparisonTab purchasePrice={formData.purchasePrice} />;
       default:
         return (
           <div className="bg-gray-50 border-l-4 border-gray-400 p-6 rounded-r-lg">
-            <p className="text-gray-800">This tab is coming soon in Sprint 3 & 4!</p>
+            <p className="text-gray-800">This tab is coming soon!</p>
           </div>
         );
     }
   };
 
+  const handleExport = () => {
+    if (!analysisResults || !formData) return;
+
+    const exportData = {
+      property: analysisResults.property,
+      inputs: formData,
+      flip: analysisResults.flip,
+      rental: analysisResults.rental,
+      comps: analysisResults.comps,
+      exportDate: new Date().toISOString(),
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `rei-analysis-${analysisResults.property.address.replace(/\s+/g, '-')}-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
-        <header className="text-center mb-10 animate-fadeIn">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Menu Bar */}
+      <MenuBar
+        onNewAnalysis={handleNewAnalysis}
+        onExport={handleExport}
+        onPrint={handlePrint}
+        onModeChange={handleModeChange}
+        currentMode={mode}
+        hasResults={viewMode === 'results' && !!analysisResults}
+        onTabChange={handleTabChange}
+      />
+
+      {/* Main Layout */}
+      <div className="flex flex-1">
+        {/* Sidebar - only show when results are available */}
+        {viewMode === 'results' && analysisResults && (
+          <Sidebar
+            activeTab={activeTab}
+            mode={mode}
+            onTabChange={handleTabChange}
+            onModeChange={handleModeChange}
+          />
+        )}
+
+        {/* Main Content */}
+        <div className="flex-1 overflow-x-hidden">
+          <div className="container mx-auto px-4 py-8 lg:px-8">
+          {/* Header */}
+          <header className="text-center mb-10 animate-fadeIn">
           <div className="inline-block mb-4">
             <div className="bg-gradient-to-br from-primary-500 to-primary-700 p-4 rounded-2xl shadow-2xl">
               <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,48 +346,55 @@ function App() {
           </div>
         )}
 
-        {/* Main Content */}
-        <div className="max-w-7xl mx-auto">
-          {viewMode === 'form' ? (
-            <PropertyForm onSubmit={handleFormSubmit} loading={loading} />
-          ) : analysisResults ? (
-            <>
-              {/* Header with New Analysis Button */}
-              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
-                    <p className="text-gray-600 mt-1">
-                      {analysisResults.property.address}, {analysisResults.property.city}, {analysisResults.property.state} {analysisResults.property.zip}
-                    </p>
+          {/* Main Content */}
+          <div className="max-w-7xl mx-auto">
+            {viewMode === 'form' ? (
+              <>
+                {/* Property History */}
+                <PropertyHistory
+                  history={propertyHistory}
+                  onSelectProperty={handleSelectPropertyFromHistory}
+                  onRemoveProperty={handleRemovePropertyFromHistory}
+                  onClearHistory={handleClearHistory}
+                />
+
+                {/* Property Form */}
+                <PropertyForm
+                  onSubmit={handleFormSubmit}
+                  loading={loading}
+                  selectedHistoryData={selectedHistoryData}
+                />
+              </>
+            ) : analysisResults ? (
+              <>
+                {/* Header with New Analysis Button */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
+                      <p className="text-gray-600 mt-1">
+                        {analysisResults.property.address}, {analysisResults.property.city}, {analysisResults.property.state} {analysisResults.property.zip}
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleNewAnalysis}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors shadow-sm"
+                    >
+                      New Analysis
+                    </button>
                   </div>
-                  <button
-                    onClick={handleNewAnalysis}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 transition-colors"
-                  >
-                    New Analysis
-                  </button>
                 </div>
-              </div>
 
-              {/* Tab Navigation */}
-              <TabNavigation
-                activeTab={activeTab}
-                mode={mode}
-                onTabChange={handleTabChange}
-                onModeChange={handleModeChange}
-              />
+                {/* Tab Content */}
+                <div className="animate-fadeIn">
+                  {renderTabContent()}
+                </div>
+              </>
+            ) : null}
+          </div>
 
-              {/* Tab Content */}
-              <div className="animate-fadeIn">
-                {renderTabContent()}
-              </div>
-            </>
-          ) : null}
-        </div>
-
-        {/* Footer */}
-        <footer className="text-center mt-16 pb-8">
+          {/* Footer */}
+          <footer className="text-center mt-16 pb-8">
           <div className="max-w-4xl mx-auto">
             <div className="border-t border-gray-200 pt-8">
               <p className="text-gray-600 text-sm font-medium">
@@ -269,7 +419,9 @@ function App() {
               </div>
             </div>
           </div>
-        </footer>
+          </footer>
+          </div>
+        </div>
       </div>
     </div>
   );
