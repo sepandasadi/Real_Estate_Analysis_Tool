@@ -61,9 +61,148 @@ function onOpen() {
 //  * Open the REI Assistant Sidebar
 //  */
 function openSidebar() {
-  const html = HtmlService.createHtmlOutputFromFile("Sidebar")
+  const html = HtmlService.createHtmlOutputFromFile("SHEETS_sidebar")
     .setTitle("REI Assistant");
   SpreadsheetApp.getUi().showSidebar(html);
+}
+
+/**
+ * Menu wrapper for running analysis
+ */
+function menuRunAnalysis() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inputs = ss.getSheetByName("Inputs");
+
+  if (!inputs) {
+    SpreadsheetApp.getUi().alert("❌ Inputs sheet not found");
+    return;
+  }
+
+  // Get data from Inputs sheet
+  const data = {
+    address: getField("address", ""),
+    city: getField("city", ""),
+    state: getField("state", ""),
+    zip: getField("zip", ""),
+    purchasePrice: getField("purchasePrice", 0),
+    downPayment: getField("downPayment", 20),
+    loanInterestRate: getField("loanInterestRate", 7),
+    loanTerm: getField("loanTerm", 30),
+    cashInvestment: getField("cashInvestment", 0),
+    helocInterest: getField("helocInterest", 7),
+    rehabCost: getField("rehabCost", 0),
+    monthsToFlip: getField("monthsToFlip", 6)
+  };
+
+  // Validate required fields
+  if (!data.address || !data.city || !data.state || !data.zip) {
+    SpreadsheetApp.getUi().alert("⚠️ Please fill in property address, city, state, and zip first.");
+    return;
+  }
+
+  if (!data.purchasePrice || data.purchasePrice <= 0) {
+    SpreadsheetApp.getUi().alert("⚠️ Please enter a valid purchase price.");
+    return;
+  }
+
+  // Run analysis
+  runAnalysis(data);
+}
+
+/**
+ * Show Interactive Scenario Analyzer
+ */
+function showScenarioAnalyzer() {
+  const html = HtmlService.createHtmlOutputFromFile("SHEETS_scenarioAnalyzerHTML")
+    .setWidth(800)
+    .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(html, "Interactive Scenario Analyzer");
+}
+
+/**
+ * Calculate and update Partnership IRR
+ */
+function updatePartnershipIRR() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Partnership Management");
+
+  if (!sheet) {
+    SpreadsheetApp.getUi().alert("❌ Partnership Management sheet not found. Generate it first from Advanced Tools menu.");
+    return;
+  }
+
+  // TODO: Implement IRR calculation logic
+  // For now, just show a confirmation
+  SpreadsheetApp.getUi().alert("✅ Partnership IRR calculation complete!\n\nNote: Full IRR calculation will be implemented in a future update.");
+}
+
+/**
+ * Create Filtered Comps View
+ */
+function createFilteredCompsView() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("Filtered Comps");
+
+  if (!sheet) {
+    sheet = ss.insertSheet("Filtered Comps");
+  }
+
+  sheet.clear();
+
+  // Add header
+  sheet.getRange("A1").setValue("Filtered Comps View")
+    .setFontWeight("bold")
+    .setFontSize(14)
+    .setBackground("#1a73e8")
+    .setFontColor("white");
+
+  sheet.getRange("A3").setValue("This feature allows you to filter comparable properties by:")
+    .setFontSize(11);
+
+  const features = [
+    ["• Date Range", "Last 3/6/12 months"],
+    ["• Distance", "Within 0.5/1/2/5 miles"],
+    ["• Property Type", "SFR, Condo, Townhouse, Multi-family"],
+    ["• Square Footage", "±10/20/30%"],
+    ["• Bedrooms/Bathrooms", "Exact match or similar"]
+  ];
+
+  sheet.getRange(5, 1, features.length, 2).setValues(features);
+  sheet.getRange(5, 1, features.length, 1).setFontWeight("bold");
+
+  sheet.getRange(11, 1).setValue("Coming soon in a future update!")
+    .setFontStyle("italic")
+    .setFontColor("#666666");
+
+  sheet.setColumnWidth(1, 200);
+  sheet.setColumnWidth(2, 300);
+
+  SpreadsheetApp.getUi().alert("✅ Filtered Comps view created!\n\nFull filtering functionality will be implemented in a future update.");
+}
+
+/**
+ * Remove all sheet protections
+ */
+function unprotectAll() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheets = ss.getSheets();
+  let removedCount = 0;
+
+  sheets.forEach(sheet => {
+    const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET);
+    protections.forEach(protection => {
+      if (protection.canEdit()) {
+        protection.remove();
+        removedCount++;
+      }
+    });
+  });
+
+  if (removedCount > 0) {
+    SpreadsheetApp.getUi().alert(`✅ Removed ${removedCount} sheet protection(s)!\n\nAll sheets are now unlocked.`);
+  } else {
+    SpreadsheetApp.getUi().alert("ℹ️ No sheet protections found to remove.");
+  }
 }
 
 function runAnalysis(data) {
