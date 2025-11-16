@@ -132,25 +132,6 @@ const CompsTab: React.FC<CompsTabProps> = ({ comps }) => {
                   return null;
                 };
 
-                // Calculate age of comp
-                const getCompAge = () => {
-                  if (!comp.saleDate) return null;
-                  try {
-                    const saleDate = new Date(comp.saleDate);
-                    const now = new Date();
-                    const diffTime = Math.abs(now.getTime() - saleDate.getTime());
-                    const diffMonths = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 30));
-                    if (diffMonths < 12) {
-                      return `${diffMonths} month${diffMonths === 1 ? '' : 's'} ago`;
-                    } else {
-                      const years = Math.floor(diffMonths / 12);
-                      return `${years} year${years === 1 ? '' : 's'} ago`;
-                    }
-                  } catch (e) {
-                    return null;
-                  }
-                };
-
                 return (
                   <tr key={index} className={`hover:bg-gray-100 transition-colors ${rowBgColor}`}>
                     <td className="px-4 py-3 text-sm">

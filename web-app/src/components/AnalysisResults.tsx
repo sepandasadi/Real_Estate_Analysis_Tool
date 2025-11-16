@@ -13,7 +13,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-start">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
@@ -32,7 +32,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Deal Score */}
       {score && (
-        <div className="bg-gradient-to-r from-primary-500 to-primary-700 rounded-lg shadow-md p-6 text-white">
+        <div className="bg-primary-600 rounded-lg shadow-sm border border-primary-700 p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xl font-semibold mb-2">Deal Score</h3>
@@ -60,7 +60,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Alerts */}
       {alerts && alerts.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Alerts</h3>
           <div className="space-y-3">
             {alerts.map((alert, index) => (
@@ -91,7 +91,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Insights */}
       {insights && insights.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Insights & Recommendations</h3>
           <div className="space-y-3">
             {insights.map((insight, index) => (
@@ -122,7 +122,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Flip Analysis */}
       {flip && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Flip Analysis</h3>
 
           {/* Key Metrics */}
@@ -178,7 +178,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Rental Analysis */}
       {rental && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Rental Analysis</h3>
 
           {/* Key Metrics */}
@@ -262,7 +262,7 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
 
       {/* Comparable Properties */}
       {comps && comps.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-xl font-semibold text-gray-800 mb-4">Comparable Properties</h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">

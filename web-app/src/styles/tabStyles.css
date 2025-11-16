@@ -1,0 +1,57 @@
+/* Consistent Tab Styling - Refined Color Scheme */
+
+/* Card Styles - Replace heavy shadows with subtle borders */
+.tab-card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
+}
+
+.tab-card-header {
+  @apply bg-primary-600 rounded-lg shadow-sm border border-primary-700 p-6 text-white;
+}
+
+/* Metric Cards - Simplified backgrounds */
+.metric-card-blue {
+  @apply bg-blue-50 p-5 rounded-lg border border-blue-200;
+}
+
+.metric-card-green {
+  @apply bg-green-50 p-5 rounded-lg border border-green-200;
+}
+
+.metric-card-purple {
+  @apply bg-purple-50 p-5 rounded-lg border border-purple-200;
+}
+
+.metric-card-orange {
+  @apply bg-orange-50 p-5 rounded-lg border border-orange-200;
+}
+
+.metric-card-indigo {
+  @apply bg-indigo-50 p-5 rounded-lg border border-indigo-200;
+}
+
+/* Info Sections - Subtle backgrounds */
+.info-section-blue {
+  @apply bg-blue-50 rounded-lg p-6 border border-blue-200;
+}
+
+.info-section-purple {
+  @apply bg-purple-50 rounded-lg p-6 border border-purple-200;
+}
+
+.info-section-indigo {
+  @apply bg-indigo-50 rounded-lg p-6 border border-indigo-200;
+}
+
+/* Progress Bars - Solid colors instead of gradients */
+.progress-bar-blue {
+  @apply bg-blue-600 h-4 rounded-full transition-all duration-500;
+}
+
+.progress-bar-green {
+  @apply bg-green-600 h-4 rounded-full transition-all duration-500;
+}
+
+.progress-bar-red {
+  @apply bg-red-600 h-4 rounded-full transition-all duration-500;
+}

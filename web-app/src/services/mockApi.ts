@@ -25,8 +25,8 @@ export async function getMockApiUsage(): Promise<ApiResponse<ApiUsageData>> {
       },
       usRealEstate: {
         used: 8,
-        limit: 100,
-        remaining: 92,
+        limit: 300,
+        remaining: 262,
         period: 'monthly',
         resetDate: '2025-11-30'
       },
@@ -51,19 +51,12 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
 
   const purchasePrice = data.purchasePrice;
   const rehabCost = data.rehabCost || 0;
-  const arv = purchasePrice * 1.3; // Backend calculates ARV
   const monthlyRent = purchasePrice * 0.01; // Backend calculates rent estimate
   const downPaymentPercent = data.downPayment || 25;
   const downPayment = purchasePrice * (downPaymentPercent / 100);
   const loanInterestRate = data.loanInterestRate || 7.0;
   const loanTerm = data.loanTerm || 30;
   const monthsToFlip = data.monthsToFlip || 6;
-
-  // Flip calculations
-  const totalInvestment = purchasePrice + rehabCost;
-  const sellingCosts = arv * 0.08;
-  const netProfit = arv - totalInvestment - sellingCosts;
-  const roi = (netProfit / totalInvestment) * 100;
 
   // Rental calculations
   const loanAmount = purchasePrice - downPayment;
@@ -84,7 +77,117 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
   const capRate = (annualNOI / purchasePrice) * 100;
   const cashOnCashReturn = ((cashFlow * 12) / downPayment) * 100;
 
-  // Calculate score
+  // Mock comparable properties with realistic data and condition indicators
+  const comps = [
+    {
+      address: '125 Main St',
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      price: purchasePrice * 1.25,
+      beds: 3,
+      baths: 2,
+      sqft: 1500,
+      yearBuilt: 1985,
+      saleDate: '10/15/2024',
+      distance: 0.1,
+      propertyUrl: 'https://www.zillow.com',
+      condition: 'remodeled',
+      dataSource: 'zillow',
+      isReal: true
+    },
+    {
+      address: '130 Oak Ave',
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      price: purchasePrice * 1.22,
+      beds: 3,
+      baths: 2,
+      sqft: 1450,
+      yearBuilt: 1980,
+      saleDate: '09/22/2024',
+      distance: 0.2,
+      propertyUrl: 'https://www.zillow.com',
+      condition: 'remodeled',
+      dataSource: 'zillow',
+      isReal: true
+    },
+    {
+      address: '142 Elm St',
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      price: purchasePrice * 1.28,
+      beds: 4,
+      baths: 2.5,
+      sqft: 1650,
+      yearBuilt: 1990,
+      saleDate: '10/01/2024',
+      distance: 0.3,
+      propertyUrl: 'https://www.zillow.com',
+      condition: 'remodeled',
+      dataSource: 'zillow',
+      isReal: true
+    },
+    {
+      address: '156 Pine Dr',
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      price: purchasePrice * 1.02,
+      beds: 3,
+      baths: 2,
+      sqft: 1480,
+      yearBuilt: 1982,
+      saleDate: '08/10/2024',
+      distance: 0.4,
+      propertyUrl: 'https://www.zillow.com',
+      condition: 'unremodeled',
+      dataSource: 'zillow',
+      isReal: true
+    }
+  ];
+
+  // Smart ARV Calculation (matching Google Sheets logic)
+  const remodeledComps = comps.filter(c => c.condition === 'remodeled');
+  const unremodeledComps = comps.filter(c => c.condition === 'unremodeled');
+
+  let arv = 0;
+  let arvCalculationMethod = '';
+
+  if (remodeledComps.length >= 3) {
+    // Best case: 3+ remodeled comps - use average with 0% premium
+    const avgRemodeled = remodeledComps.reduce((sum, c) => sum + c.price, 0) / remodeledComps.length;
+    arv = avgRemodeled;
+    arvCalculationMethod = `Average of ${remodeledComps.length} remodeled comps (0% premium)`;
+  } else if (remodeledComps.length > 0 && unremodeledComps.length > 0) {
+    // Mixed case: Calculate renovation premium, cap at 25%
+    const avgRemodeled = remodeledComps.reduce((sum, c) => sum + c.price, 0) / remodeledComps.length;
+    const avgUnremodeled = unremodeledComps.reduce((sum, c) => sum + c.price, 0) / unremodeledComps.length;
+    const renovationPremium = avgRemodeled / avgUnremodeled;
+    const cappedPremium = Math.min(renovationPremium, 1.25);
+    arv = avgUnremodeled * cappedPremium;
+    arvCalculationMethod = `${remodeledComps.length} remodeled + ${unremodeledComps.length} unremodeled comps (${((cappedPremium - 1) * 100).toFixed(1)}% premium, capped at 25%)`;
+  } else if (unremodeledComps.length >= 3) {
+    // Only unremodeled comps: Apply 25% premium
+    const avgUnremodeled = unremodeledComps.reduce((sum, c) => sum + c.price, 0) / unremodeledComps.length;
+    arv = avgUnremodeled * 1.25;
+    arvCalculationMethod = `Average of ${unremodeledComps.length} unremodeled comps + 25% renovation premium`;
+  } else {
+    // Fallback: Use all comps with 20% premium
+    const avgAll = comps.reduce((sum, c) => sum + c.price, 0) / comps.length;
+    arv = avgAll * 1.20;
+    arvCalculationMethod = `Average of ${comps.length} mixed comps + 20% premium`;
+  }
+
+  // Flip calculations with calculated ARV
+  const totalInvestment = purchasePrice + rehabCost;
+  const sellingCosts = arv * 0.08;
+  const netProfit = arv - totalInvestment - sellingCosts;
+  const roi = (netProfit / totalInvestment) * 100;
+
+  // Calculate score based on ROI and rental metrics
   let score = 0;
   if (roi > 20) score += 25;
   else if (roi > 15) score += 20;
@@ -173,52 +276,6 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
     });
   }
 
-  // Mock comparable properties
-  const comps = [
-    {
-      address: '125 Main St',
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      price: purchasePrice * 1.05,
-      beds: 3,
-      baths: 2,
-      sqft: 1500,
-      yearBuilt: 1985,
-      saleDate: '10/15/2024',
-      distance: 0.1,
-      propertyUrl: 'https://www.zillow.com'
-    },
-    {
-      address: '130 Oak Ave',
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      price: purchasePrice * 0.95,
-      beds: 3,
-      baths: 2,
-      sqft: 1450,
-      yearBuilt: 1980,
-      saleDate: '09/22/2024',
-      distance: 0.2,
-      propertyUrl: 'https://www.zillow.com'
-    },
-    {
-      address: '142 Elm St',
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      price: purchasePrice * 1.1,
-      beds: 4,
-      baths: 2.5,
-      sqft: 1650,
-      yearBuilt: 1990,
-      saleDate: '10/01/2024',
-      distance: 0.3,
-      propertyUrl: 'https://www.zillow.com'
-    }
-  ];
-
   return {
     success: true,
     data: {
@@ -229,6 +286,7 @@ export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiRe
         zip: data.zip
       },
       comps: comps,
+      arvCalculationMethod, // Add transparency about ARV calculation
       flip: {
         purchasePrice,
         rehabCost,
