@@ -21,8 +21,8 @@ function getApiQuotas() {
     ZILLOW_MONTHLY_LIMIT: parseInt(props.getProperty('ZILLOW_MONTHLY_LIMIT') || '100'),
     ZILLOW_THRESHOLD: parseInt(props.getProperty('ZILLOW_THRESHOLD') || '90'),
 
-    US_REAL_ESTATE_MONTHLY_LIMIT: parseInt(props.getProperty('US_REAL_ESTATE_MONTHLY_LIMIT') || '100'),
-    US_REAL_ESTATE_THRESHOLD: parseInt(props.getProperty('US_REAL_ESTATE_THRESHOLD') || '90'),
+    US_REAL_ESTATE_MONTHLY_LIMIT: parseInt(props.getProperty('US_REAL_ESTATE_MONTHLY_LIMIT') || '300'),
+    US_REAL_ESTATE_THRESHOLD: parseInt(props.getProperty('US_REAL_ESTATE_THRESHOLD') || '270'),
 
     GEMINI_DAILY_LIMIT: parseInt(props.getProperty('GEMINI_DAILY_LIMIT') || '1500'),
     GEMINI_THRESHOLD: parseInt(props.getProperty('GEMINI_THRESHOLD') || '1400')
@@ -501,7 +501,10 @@ function fetchCompsFromZillow(data) {
         condition: "unknown",
         link: propertyLink,
         latitude: prop.latitude || prop.lat || null,
-        longitude: prop.longitude || prop.lng || null
+        longitude: prop.longitude || prop.lng || null,
+        dataSource: 'zillow',
+        isReal: true,
+        qualityScore: 100
       };
     });
 

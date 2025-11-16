@@ -345,12 +345,34 @@ function validateRentalData(data) {
 
 /**
  * Calculate ARV from comps based on property similarity
- * Filters comps by beds, baths, and sqft similarity
+ * Filters comps by beds, baths, sqft similarity, and date (last 2 years)
  */
 function calculateARVFromComps(comps, propertyDetails, purchasePrice) {
   if (!comps || comps.length === 0) {
-    Logger.log("⚠️ No comps available, using 1.3x purchase price as ARV");
-    return purchasePrice * 1.3;
+    Logger.log("⚠️ No comps available, using 1.2x purchase price as ARV (conservative)");
+    return purchasePrice * 1.2;
+  }
+
+  // Filter comps by date (last 2 years only)
+  const twoYearsAgo = new Date();
+  twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+  const recentComps = comps.filter(comp => {
+    if (!comp.saleDate) return false; // Exclude if no date
+    try {
+      const saleDate = new Date(comp.saleDate);
+      return saleDate >= twoYearsAgo;
+    } catch (e) {
+      Logger.log(`⚠️ Invalid date format for comp: ${comp.saleDate}`);
+      return false;
+    }
+  });
+
+  Logger.log(`📅 Filtered ${recentComps.length} comps from last 2 years (from ${comps.length} total)`);
+
+  if (recentComps.length === 0) {
+    Logger.log("⚠️ No recent comps available, using 1.2x purchase price as ARV");
+    return purchasePrice * 1.2;
   }
 
   // Filter comps by similarity (±20% sqft, same beds/baths preferred)
@@ -358,7 +380,7 @@ function calculateARVFromComps(comps, propertyDetails, purchasePrice) {
   const targetBeds = propertyDetails.beds;
   const targetBaths = propertyDetails.baths;
 
-  const similarComps = comps.filter(comp => {
+  const similarComps = recentComps.filter(comp => {
     const sqftMatch = comp.sqft >= targetSqft * 0.8 && comp.sqft <= targetSqft * 1.2;
     const bedsMatch = !comp.beds || comp.beds === targetBeds;
     const bathsMatch = !comp.baths || Math.abs(comp.baths - targetBaths) <= 0.5;
@@ -366,8 +388,8 @@ function calculateARVFromComps(comps, propertyDetails, purchasePrice) {
     return sqftMatch && bedsMatch && bathsMatch;
   });
 
-  // If no similar comps, use all comps
-  const compsToUse = similarComps.length > 0 ? similarComps : comps;
+  // If no similar comps, use all recent comps
+  const compsToUse = similarComps.length >= 3 ? similarComps : recentComps;
 
   Logger.log(`📊 Using ${compsToUse.length} similar comps for ARV calculation`);
 
@@ -375,21 +397,43 @@ function calculateARVFromComps(comps, propertyDetails, purchasePrice) {
   const remodeledComps = compsToUse.filter(c => c.condition === "remodeled");
   const unremodeledComps = compsToUse.filter(c => c.condition === "unremodeled");
 
-  // Calculate average prices
+  Logger.log(`📊 Remodeled comps: ${remodeledComps.length}, Unremodeled comps: ${unremodeledComps.length}`);
+
+  // Calculate average prices for each category
+  const avgRemodeled = remodeledComps.length > 0
+    ? remodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / remodeledComps.length
+    : 0;
+  const avgUnremodeled = unremodeledComps.length > 0
+    ? unremodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / unremodeledComps.length
+    : 0;
+
+  // Enhanced ARV Calculation Logic (Conservative Approach - matches Google Sheets)
   let arv;
-  if (remodeledComps.length > 0) {
-    // Use remodeled comps average
-    arv = remodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / remodeledComps.length;
-    Logger.log(`✅ ARV based on ${remodeledComps.length} remodeled comps: $${Math.round(arv)}`);
-  } else if (unremodeledComps.length > 0) {
-    // Use unremodeled comps average × 1.15 (renovation premium)
-    const avgUnremodeled = unremodeledComps.reduce((sum, c) => sum + (c.price || 0), 0) / unremodeledComps.length;
-    arv = avgUnremodeled * 1.15;
-    Logger.log(`✅ ARV based on ${unremodeledComps.length} unremodeled comps + 15% premium: $${Math.round(arv)}`);
+  if (remodeledComps.length >= 3) {
+    // Best case: We have 3+ remodeled comps - use average with 0% premium
+    arv = avgRemodeled;
+    Logger.log(`✅ ARV based on ${remodeledComps.length} remodeled comps (0% premium): $${Math.round(arv)}`);
+  } else if (remodeledComps.length > 0 && unremodeledComps.length > 0) {
+    // Mixed case: Calculate renovation premium from available data, cap at 25%
+    const renovationPremium = avgRemodeled / avgUnremodeled;
+    const cappedPremium = Math.min(renovationPremium, 1.25);
+    arv = avgUnremodeled * cappedPremium;
+    Logger.log(`✅ ARV based on mixed comps with ${((cappedPremium - 1) * 100).toFixed(1)}% premium (capped at 25%): $${Math.round(arv)}`);
+  } else if (unremodeledComps.length >= 3) {
+    // Only unremodeled comps: Apply 25% premium
+    arv = avgUnremodeled * 1.25;
+    Logger.log(`✅ ARV based on ${unremodeledComps.length} unremodeled comps + 25% premium: $${Math.round(arv)}`);
   } else {
-    // Use all comps average
-    arv = compsToUse.reduce((sum, c) => sum + (c.price || 0), 0) / compsToUse.length;
-    Logger.log(`✅ ARV based on ${compsToUse.length} comps average: $${Math.round(arv)}`);
+    // Fallback: Use all available comps with 20% premium
+    if (compsToUse.length > 0) {
+      const avgAll = compsToUse.reduce((sum, c) => sum + (c.price || 0), 0) / compsToUse.length;
+      arv = avgAll * 1.20;
+      Logger.log(`✅ ARV based on ${compsToUse.length} mixed comps + 20% premium: $${Math.round(arv)}`);
+    } else {
+      // Ultimate fallback: Conservative estimate
+      arv = purchasePrice * 1.20;
+      Logger.log(`✅ ARV using conservative estimate (20% premium on purchase price): $${Math.round(arv)}`);
+    }
   }
 
   return Math.round(arv);
