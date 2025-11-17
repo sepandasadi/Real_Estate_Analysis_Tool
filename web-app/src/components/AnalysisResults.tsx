@@ -141,6 +141,98 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
             </div>
           </div>
 
+          {/* ARV Methodology Section (Phase 1 & 2) */}
+          {flip.arvMethod && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
+                <span className="mr-2">💡</span>
+                ARV Calculation Method
+              </h4>
+              <p className="text-sm text-gray-700 mb-3">{flip.arvMethod}</p>
+
+              {flip.arvSources && (flip.arvSources.comps || flip.arvSources.zillow || flip.arvSources.usRealEstate) && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-600 uppercase">Source Breakdown:</p>
+                  {flip.arvSources.comps && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Comps Average:</span>
+                      <span className="font-medium">{formatCurrency(flip.arvSources.comps)}</span>
+                    </div>
+                  )}
+                  {flip.arvSources.zillow && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Zillow Zestimate:</span>
+                      <span className="font-medium">{formatCurrency(flip.arvSources.zillow)}</span>
+                    </div>
+                  )}
+                  {flip.arvSources.usRealEstate && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">US Real Estate:</span>
+                      <span className="font-medium">{formatCurrency(flip.arvSources.usRealEstate)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Historical Validation Section (Phase 2) */}
+          {flip.historicalValidation && (
+            <div className={`border rounded-lg p-4 mb-6 ${
+              flip.historicalValidation.isValid
+                ? 'bg-green-50 border-green-200'
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <h4 className="font-semibold text-gray-800 mb-2 flex items-center">
+                <span className="mr-2">
+                  {flip.historicalValidation.isValid ? '✅' : '⚠️'}
+                </span>
+                Historical Validation & Market Trends
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <p className="text-xs text-gray-600">Market Trend</p>
+                  <p className="text-sm font-medium">
+                    {flip.historicalValidation.trendEmoji || ''} {flip.historicalValidation.marketTrend || 'Unknown'}
+                  </p>
+                </div>
+                {flip.historicalValidation.historicalARV && (
+                  <div>
+                    <p className="text-xs text-gray-600">Historical ARV</p>
+                    <p className="text-sm font-medium">{formatCurrency(flip.historicalValidation.historicalARV)}</p>
+                  </div>
+                )}
+                {flip.historicalValidation.deviation !== undefined && (
+                  <div>
+                    <p className="text-xs text-gray-600">ARV Deviation</p>
+                    <p className="text-sm font-medium">{formatPercent(flip.historicalValidation.deviation * 100)}</p>
+                  </div>
+                )}
+                {flip.historicalValidation.appreciationRate !== undefined && (
+                  <div>
+                    <p className="text-xs text-gray-600">Annual Appreciation</p>
+                    <p className="text-sm font-medium">{formatPercent(flip.historicalValidation.appreciationRate * 100)}</p>
+                  </div>
+                )}
+              </div>
+
+              {flip.historicalValidation.warnings && flip.historicalValidation.warnings.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-yellow-300">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Warnings:</p>
+                  <ul className="space-y-1">
+                    {flip.historicalValidation.warnings.map((warning, idx) => (
+                      <li key={idx} className="text-xs text-gray-700 flex items-start">
+                        <span className="mr-1">•</span>
+                        <span>{warning}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Detailed Breakdown */}
           <div className="border-t border-gray-200 pt-4">
             <h4 className="font-semibold text-gray-800 mb-3">Cost Breakdown</h4>
@@ -286,6 +378,12 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Distance
                   </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quality
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Source
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -322,6 +420,27 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
                       {comp.distance ? `${comp.distance.toFixed(2)} mi` : 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      {comp.qualityScore ? (
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          comp.qualityScore >= 95 ? 'bg-green-100 text-green-800' :
+                          comp.qualityScore >= 85 ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {comp.qualityScore}
+                        </span>
+                      ) : 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900">
+                      <span className="text-xs">
+                        {comp.dataSource === 'zillow_property_comps' ? '🏠 Zillow AI' :
+                         comp.dataSource === 'us_real_estate_similar_homes' ? '🔑 US RE AI' :
+                         comp.dataSource === 'us_real_estate_targeted' ? '🎯 US RE' :
+                         comp.dataSource === 'zillow' ? '🏠 Zillow' :
+                         comp.dataSource === 'gemini' ? '🤖 Gemini' :
+                         comp.dataSource || 'Unknown'}
+                      </span>
                     </td>
                   </tr>
                 ))}

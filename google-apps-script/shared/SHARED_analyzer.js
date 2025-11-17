@@ -1,13 +1,15 @@
 /**
  * Check if currently in Simple Mode
  * @returns {boolean}
+ * NOTE: Uses PropertiesService directly for document-specific properties
+ * (not migrated to QuotaManager as this is document-level, not script-level)
  */
 function isSimpleMode() {
   try {
     const docProps = PropertiesService.getDocumentProperties();
     return (docProps.getProperty('analysisMode') || 'Simple') === 'Simple';
   } catch (e) {
-    Logger.log("Error checking mode: " + e);
+    PlatformLogger.error("Error checking mode: " + e);
     return true; // Default to Simple if error
   }
 }
@@ -19,7 +21,7 @@ function isSimpleMode() {
 function generateFlipAnalysis(comps) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Flip Analysis");
-  if (!sheet) return Logger.log("❌ Flip Analysis sheet not found.");
+  if (!sheet) return PlatformLogger.error("❌ Flip Analysis sheet not found.");
 
   sheet.clearContents();
 
@@ -166,9 +168,51 @@ function generateFlipAnalysis(comps) {
     .setBorder(true, true, true, true, true, true, "#000000", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
   row++;
 
-  // Calculate ARV from Comps with Enhanced Logic
+  // Calculate ARV from Comps with Enhanced Multi-Source Logic
+  // Phase 1.5: Multi-Source Weighted ARV Calculation
   let arv = 0;
   let arvCalculationMethod = "Legacy (No Comps)";
+  let arvSources = {
+    comps: null,
+    zillow: null,
+    usRealEstate: null
+  };
+
+  // Fetch additional estimate sources (Phase 1.2 & 1.3)
+  const propertyData = {
+    address: getField("address", ""),
+    city: getField("city", ""),
+    state: getField("state", ""),
+    zip: getField("zip", "")
+  };
+
+  // Try to get Zillow Zestimate (Phase 1.2)
+  try {
+    const propertyDetails = fetchPropertyDetails(propertyData);
+    if (propertyDetails && propertyDetails.zpid) {
+      const zestimate = fetchZillowZestimate(propertyDetails.zpid);
+      if (zestimate && zestimate.zestimate) {
+        arvSources.zillow = zestimate.zestimate;
+        PlatformLogger.success(`💰 Zillow Zestimate: $${zestimate.zestimate.toLocaleString()}`);
+      }
+    }
+  } catch (e) {
+    PlatformLogger.warn(`Failed to fetch Zillow Zestimate: ${e.message}`);
+  }
+
+  // Try to get US Real Estate estimate (Phase 1.3)
+  try {
+    const propertyId = getUSRealEstatePropertyId(propertyData);
+    if (propertyId) {
+      const usEstimate = fetchUSRealEstateHomeEstimate(propertyId);
+      if (usEstimate && usEstimate.estimate) {
+        arvSources.usRealEstate = usEstimate.estimate;
+        PlatformLogger.success(`🏡 US Real Estate Estimate: $${usEstimate.estimate.toLocaleString()}`);
+      }
+    }
+  } catch (e) {
+    PlatformLogger.warn(`Failed to fetch US Real Estate estimate: ${e.message}`);
+  }
 
   if (!comps || comps.length === 0) {
     if (!simpleMode) {
@@ -177,8 +221,9 @@ function generateFlipAnalysis(comps) {
     // Legacy fallback: 20% premium (conservative)
     arv = purchasePrice * 1.20;
     arvCalculationMethod = "Legacy (20% premium on purchase price)";
-    Logger.log(`📊 ARV Calculation: Using legacy method - ${arvCalculationMethod}`);
+    PlatformLogger.info(`📊 ARV Calculation: Using legacy method - ${arvCalculationMethod}`);
   } else {
+
     // Get property details for filtering
     const propertyDetails = fetchPropertyDetails({
       address: getField("address", ""),
@@ -191,7 +236,7 @@ function generateFlipAnalysis(comps) {
     const targetBeds = propertyDetails.beds;
     const targetBaths = propertyDetails.baths;
 
-    Logger.log(`🏠 Target Property: ${targetBeds} bed, ${targetBaths} bath, ${targetSqft} sqft`);
+    PlatformLogger.info(`🏠 Target Property: ${targetBeds} bed, ${targetBaths} bath, ${targetSqft} sqft`);
 
     // Filter comps by date (last 2 years only)
     const twoYearsAgo = new Date();
@@ -203,12 +248,12 @@ function generateFlipAnalysis(comps) {
         const saleDate = new Date(c.saleDate);
         return saleDate >= twoYearsAgo;
       } catch (e) {
-        Logger.log(`⚠️ Invalid date format for comp: ${c.saleDate}`);
+        PlatformLogger.warn(`⚠️ Invalid date format for comp: ${c.saleDate}`);
         return false;
       }
     });
 
-    Logger.log(`📅 Filtered ${recentComps.length} comps from last 2 years (from ${comps.length} total)`);
+    PlatformLogger.info(`📅 Filtered ${recentComps.length} comps from last 2 years (from ${comps.length} total)`);
 
     // Filter comps by similarity (±20% sqft, same beds/baths preferred)
     const filteredComps = recentComps.filter(c => {
@@ -218,7 +263,7 @@ function generateFlipAnalysis(comps) {
       return sqftMatch && bedsMatch && bathsMatch;
     });
 
-    Logger.log(`🔍 Filtered ${filteredComps.length} comps from ${recentComps.length} recent (by sqft, beds, baths)`);
+    PlatformLogger.info(`🔍 Filtered ${filteredComps.length} comps from ${recentComps.length} recent (by sqft, beds, baths)`);
 
     // Use filtered comps if we have enough, otherwise use all recent comps
     const compsToUse = filteredComps.length >= 3 ? filteredComps : recentComps;
@@ -227,7 +272,7 @@ function generateFlipAnalysis(comps) {
     const remodeledComps = compsToUse.filter(c => c.condition === "remodeled");
     const unremodeledComps = compsToUse.filter(c => c.condition === "unremodeled");
 
-    Logger.log(`📊 Remodeled comps: ${remodeledComps.length}, Unremodeled comps: ${unremodeledComps.length}`);
+    PlatformLogger.info(`📊 Remodeled comps: ${remodeledComps.length}, Unremodeled comps: ${unremodeledComps.length}`);
 
     // Calculate average prices for each category
     const avgRemodeled = remodeledComps.length > 0
@@ -238,37 +283,74 @@ function generateFlipAnalysis(comps) {
       : 0;
 
     // Enhanced ARV Calculation Logic (Conservative Approach)
+    let compsARV = 0;
     if (remodeledComps.length >= 3) {
       // Best case: We have 3+ remodeled comps - use average with 0% premium
-      arv = avgRemodeled;
-      arvCalculationMethod = `Average of ${remodeledComps.length} remodeled comps (0% premium)`;
-      Logger.log(`✅ ARV Calculation: Using ${remodeledComps.length} remodeled comps average (no premium)`);
+      compsARV = avgRemodeled;
+      arvSources.comps = compsARV;
+      PlatformLogger.success(`✅ Comps ARV: Using ${remodeledComps.length} remodeled comps average (no premium)`);
     } else if (remodeledComps.length > 0 && unremodeledComps.length > 0) {
       // Mixed case: Calculate renovation premium from available data, cap at 25%
       const renovationPremium = avgRemodeled / avgUnremodeled;
       const cappedPremium = Math.min(renovationPremium, 1.25);
-      arv = avgUnremodeled * cappedPremium;
-      arvCalculationMethod = `${remodeledComps.length} remodeled + ${unremodeledComps.length} unremodeled comps (${((cappedPremium - 1) * 100).toFixed(1)}% premium, capped at 25%)`;
-      Logger.log(`📊 ARV Calculation: Mixed comps with ${((cappedPremium - 1) * 100).toFixed(1)}% premium (capped at 25%)`);
+      compsARV = avgUnremodeled * cappedPremium;
+      arvSources.comps = compsARV;
+      PlatformLogger.info(`📊 Comps ARV: Mixed comps with ${((cappedPremium - 1) * 100).toFixed(1)}% premium (capped at 25%)`);
     } else if (unremodeledComps.length >= 3) {
       // Only unremodeled comps: Apply 25% premium
-      arv = avgUnremodeled * 1.25;
-      arvCalculationMethod = `Average of ${unremodeledComps.length} unremodeled comps + 25% renovation premium`;
-      Logger.log(`📊 ARV Calculation: Using ${unremodeledComps.length} unremodeled comps + 25% premium`);
+      compsARV = avgUnremodeled * 1.25;
+      arvSources.comps = compsARV;
+      PlatformLogger.info(`📊 Comps ARV: Using ${unremodeledComps.length} unremodeled comps + 25% premium`);
     } else {
       // Fallback: Use all available comps or legacy calculation
       if (compsToUse.length > 0) {
         const avgAll = compsToUse.reduce((sum, c) => sum + (c.price || 0), 0) / compsToUse.length;
-        arv = avgAll * 1.20; // Apply 20% premium as conservative estimate
-        arvCalculationMethod = `Average of ${compsToUse.length} mixed comps + 20% premium`;
-        Logger.log(`📊 ARV Calculation: Using ${compsToUse.length} mixed comps + 20% premium`);
+        compsARV = avgAll * 1.20; // Apply 20% premium as conservative estimate
+        arvSources.comps = compsARV;
+        PlatformLogger.info(`📊 Comps ARV: Using ${compsToUse.length} mixed comps + 20% premium`);
       } else {
         // Ultimate fallback: Legacy calculation
-        arv = purchasePrice * 1.20;
-        arvCalculationMethod = "Legacy (20% premium on purchase price)";
-        Logger.log(`📊 ARV Calculation: Using legacy method - no suitable comps found`);
+        compsARV = purchasePrice * 1.20;
+        arvSources.comps = compsARV;
+        PlatformLogger.info(`📊 Comps ARV: Using legacy method - no suitable comps found`);
       }
     }
+
+    // Phase 1.5: Multi-Source Weighted ARV Calculation
+    // Calculate weighted average based on available sources
+    const availableSources = [];
+    if (arvSources.comps) availableSources.push({ name: 'comps', value: arvSources.comps, weight: 0.50 });
+    if (arvSources.zillow) availableSources.push({ name: 'zillow', value: arvSources.zillow, weight: 0.25 });
+    if (arvSources.usRealEstate) availableSources.push({ name: 'us_real_estate', value: arvSources.usRealEstate, weight: 0.25 });
+
+    if (availableSources.length === 1) {
+      // Only one source available - use it at 100%
+      arv = availableSources[0].value;
+      arvCalculationMethod = `Single source: ${availableSources[0].name} (100%)`;
+      PlatformLogger.info(`📊 Final ARV: Single source (${availableSources[0].name}): $${arv.toLocaleString()}`);
+    } else if (availableSources.length > 1) {
+      // Multiple sources - calculate weighted average
+      // Redistribute weights proportionally if not all sources available
+      const totalWeight = availableSources.reduce((sum, s) => sum + s.weight, 0);
+      let weightedSum = 0;
+      let sourceBreakdown = [];
+
+      availableSources.forEach(source => {
+        const adjustedWeight = source.weight / totalWeight;
+        weightedSum += source.value * adjustedWeight;
+        sourceBreakdown.push(`${source.name} (${(adjustedWeight * 100).toFixed(0)}%)`);
+      });
+
+      arv = weightedSum;
+      arvCalculationMethod = `Multi-source weighted: ${sourceBreakdown.join(' + ')}`;
+
+      PlatformLogger.success(`📊 Final ARV (Multi-Source Weighted): $${arv.toLocaleString()}`);
+      PlatformLogger.info(`   - Comps: ${arvSources.comps ? '$' + arvSources.comps.toLocaleString() : 'N/A'}`);
+      PlatformLogger.info(`   - Zillow: ${arvSources.zillow ? '$' + arvSources.zillow.toLocaleString() : 'N/A'}`);
+      PlatformLogger.info(`   - US Real Estate: ${arvSources.usRealEstate ? '$' + arvSources.usRealEstate.toLocaleString() : 'N/A'}`);
+      PlatformLogger.info(`   - Method: ${arvCalculationMethod}`);
+    }
+
 
     // Sort comps by distance if available
     const sortedComps = comps
@@ -313,7 +395,7 @@ function generateFlipAnalysis(comps) {
   }
   row += (comps?.length || 1) + 3;
 
-  // Add ARV Calculation Method transparency
+  // Add ARV Calculation Method transparency with source breakdown
   sheet.getRange(row, 1, 1, 2).merge()
     .setValue(`💡 ARV Calculation Method: ${arvCalculationMethod}`)
     .setFontSize(10)
@@ -321,7 +403,147 @@ function generateFlipAnalysis(comps) {
     .setFontColor("#666666")
     .setBackground("#f0f0f0")
     .setHorizontalAlignment("left");
-  row += 2;
+  row++;
+
+  // Add detailed source breakdown if multi-source
+  if (arvSources.comps || arvSources.zillow || arvSources.usRealEstate) {
+    const sourceDetails = [];
+    if (arvSources.comps) sourceDetails.push(`Comps: $${arvSources.comps.toLocaleString()}`);
+    if (arvSources.zillow) sourceDetails.push(`Zillow: $${arvSources.zillow.toLocaleString()}`);
+    if (arvSources.usRealEstate) sourceDetails.push(`US Real Estate: $${arvSources.usRealEstate.toLocaleString()}`);
+
+    if (sourceDetails.length > 1) {
+      sheet.getRange(row, 1, 1, 2).merge()
+        .setValue(`   Sources: ${sourceDetails.join(' | ')}`)
+        .setFontSize(9)
+        .setFontStyle("italic")
+        .setFontColor("#888888")
+        .setBackground("#f0f0f0")
+        .setHorizontalAlignment("left");
+      row++;
+    }
+  }
+  row++;
+
+  // --- Section 3.5: Historical Validation & Market Context (Phase 2) ---
+  sheet.getRange(row, 1, 1, 2).merge()
+    .setValue("Historical Validation & Market Context")
+    .setFontWeight("bold")
+    .setFontSize(12)
+    .setBackground("#e8f0fe")
+    .setHorizontalAlignment("left");
+  row++;
+
+  // Validate ARV against historical market trends
+  let validationResult = null;
+  try {
+    // Get property details for zpid
+    const propertyDetails = fetchPropertyDetails(propertyData);
+    const zpid = propertyDetails?.zpid;
+    const location = `${propertyData.city}, ${propertyData.state}`;
+
+    if (zpid) {
+      validationResult = validateARVAgainstMarketTrends(arv, zpid, location);
+
+      if (validationResult) {
+        // Display validation status
+        const validationStatus = validationResult.isValid
+          ? "✅ ARV is validated against historical data"
+          : "⚠️ ARV may need review";
+
+        sheet.getRange(row, 1, 1, 2).merge()
+          .setValue(validationStatus)
+          .setFontWeight("bold")
+          .setFontSize(11)
+          .setBackground(validationResult.isValid ? "#d4edda" : "#fff3cd")
+          .setFontColor(validationResult.isValid ? "#155724" : "#856404")
+          .setHorizontalAlignment("left");
+        row++;
+
+        // Display market trend indicator
+        let trendEmoji = "➡️";
+        if (validationResult.marketTrend === "hot") trendEmoji = "🔥";
+        else if (validationResult.marketTrend === "rising") trendEmoji = "📈";
+        else if (validationResult.marketTrend === "declining") trendEmoji = "📉";
+
+        const validationData = [
+          ["Market Trend", `${trendEmoji} ${validationResult.marketTrend.charAt(0).toUpperCase() + validationResult.marketTrend.slice(1)}`],
+          ["Historical ARV", validationResult.historicalARV || "N/A"],
+          ["ARV Deviation", validationResult.deviation ? `${(validationResult.deviation * 100).toFixed(1)}%` : "N/A"],
+          ["Appreciation Rate (Annual)", validationResult.appreciationRate ? `${(validationResult.appreciationRate * 100).toFixed(2)}%` : "N/A"]
+        ];
+
+        sheet.getRange(row, 1, validationData.length, 2).setValues(validationData);
+        sheet.getRange(row, 1, validationData.length, 1).setFontWeight("bold").setHorizontalAlignment("left");
+        sheet.getRange(row, 2, validationData.length, 1).setHorizontalAlignment("right");
+
+        // Format Historical ARV as currency
+        if (validationResult.historicalARV) {
+          sheet.getRange(row + 1, 2).setNumberFormat('"$"#,##0');
+        }
+
+        row += validationData.length;
+
+        // Display warnings if any
+        if (validationResult.warnings && validationResult.warnings.length > 0) {
+          row++;
+          sheet.getRange(row, 1, 1, 2).merge()
+            .setValue("⚠️ Validation Warnings:")
+            .setFontWeight("bold")
+            .setFontSize(10)
+            .setBackground("#fff3cd")
+            .setFontColor("#856404")
+            .setHorizontalAlignment("left");
+          row++;
+
+          validationResult.warnings.forEach(warning => {
+            sheet.getRange(row, 1, 1, 2).merge()
+              .setValue(`   • ${warning}`)
+              .setFontSize(9)
+              .setFontStyle("italic")
+              .setFontColor("#856404")
+              .setBackground("#fffbf0")
+              .setHorizontalAlignment("left")
+              .setWrap(true);
+            row++;
+          });
+        }
+
+        PlatformLogger.success(`✅ Historical validation completed: ${validationResult.isValid ? 'Valid' : 'Needs review'}`);
+      } else {
+        sheet.getRange(row, 1, 1, 2).merge()
+          .setValue("ℹ️ Historical validation data not available")
+          .setFontSize(10)
+          .setFontStyle("italic")
+          .setFontColor("#666666")
+          .setBackground("#f0f0f0")
+          .setHorizontalAlignment("left");
+        row++;
+        PlatformLogger.info("Historical validation data not available");
+      }
+    } else {
+      sheet.getRange(row, 1, 1, 2).merge()
+        .setValue("ℹ️ Property ID (ZPID) not found - historical validation skipped")
+        .setFontSize(10)
+        .setFontStyle("italic")
+        .setFontColor("#666666")
+        .setBackground("#f0f0f0")
+        .setHorizontalAlignment("left");
+      row++;
+      PlatformLogger.info("ZPID not found - historical validation skipped");
+    }
+  } catch (e) {
+    sheet.getRange(row, 1, 1, 2).merge()
+      .setValue(`⚠️ Historical validation error: ${e.message}`)
+      .setFontSize(9)
+      .setFontStyle("italic")
+      .setFontColor("#dc3545")
+      .setBackground("#f8d7da")
+      .setHorizontalAlignment("left");
+    row++;
+    PlatformLogger.error(`Historical validation error: ${e.message}`);
+  }
+  row++;
 
   // --- Section 4: Profit & ROI ---
   sheet.getRange(row, 1, 1, 2).merge()
@@ -412,7 +634,7 @@ function generateFlipAnalysis(comps) {
   sheet.setColumnWidth(5, 100);
   sheet.setColumnWidth(6, 80); // Link column
 
-  Logger.log("✅ Flip Analysis finalized with enhanced formatting.");
+  PlatformLogger.success("✅ Flip Analysis finalized with enhanced formatting.");
 }
 
 /**
@@ -422,7 +644,7 @@ function generateFlipAnalysis(comps) {
 function generateRentalAnalysis(comps) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Rental Analysis");
-  if (!sheet) return Logger.log("❌ Rental Analysis sheet not found.");
+  if (!sheet) return PlatformLogger.error("❌ Rental Analysis sheet not found.");
 
   sheet.clearContents();
 
@@ -690,7 +912,7 @@ function generateRentalAnalysis(comps) {
   sheet.setColumnWidth(3, 120);
   sheet.setColumnWidth(4, 120);
 
-  Logger.log("✅ Rental Analysis with enhanced formatting completed.");
+  PlatformLogger.success("✅ Rental Analysis with enhanced formatting completed.");
 }
 
 /**

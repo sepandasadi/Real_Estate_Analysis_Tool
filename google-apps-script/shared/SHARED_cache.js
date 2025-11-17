@@ -4,13 +4,15 @@
  * ===============================
  *
  * This module provides caching functionality for API responses.
- * Uses Google Apps Script CacheService for temporary storage.
+ * Uses platform adapters for cross-platform compatibility.
  *
  * Benefits:
  * - Reduces API calls and costs
  * - Improves performance
  * - Respects rate limits
  * - 24-hour cache expiration
+ *
+ * MIGRATED: Phase 0.6 - Now uses CacheManager adapter
  */
 
 /**
@@ -36,6 +38,7 @@ function generateCompsKey(address, city, state, zip) {
 
 /**
  * Get cached comps data if available and not expired
+ * Phase 2.5: Respects differentiated cache durations by data type
  *
  * @param {string} address - Property address
  * @param {string} city - City
@@ -45,51 +48,72 @@ function generateCompsKey(address, city, state, zip) {
  */
 function getCachedComps(address, city, state, zip) {
   try {
-    const cache = CacheService.getScriptCache();
     const key = generateCompsKey(address, city, state, zip);
-    const cached = cache.get(key);
+    const data = CacheManager.get(key);
 
-    if (!cached) {
-      Logger.log(`📭 Cache miss for: ${key}`);
+    if (!data) {
+      PlatformLogger.logCache('MISS', key);
       return null;
     }
 
-    // Parse cached data
-    const data = JSON.parse(cached);
-
-    // Check if cache is still valid (24 hours)
+    // Phase 2.5: Check cache validity based on data type
     const now = new Date().getTime();
     const cacheAge = now - data.timestamp;
-    const maxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+    // Determine max age based on data type
+    let maxAge;
+    switch (data.dataType) {
+      case 'property':
+        maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        break;
+      case 'location':
+        maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
+        break;
+      case 'comps':
+        maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+        break;
+      case 'estimates':
+        maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days
+        break;
+      case 'rates':
+        maxAge = 24 * 60 * 60 * 1000; // 1 day
+        break;
+      default:
+        maxAge = 7 * 24 * 60 * 60 * 1000; // Default 7 days
+    }
 
     if (cacheAge > maxAge) {
-      Logger.log(`⏰ Cache expired for: ${key} (age: ${Math.round(cacheAge / 1000 / 60 / 60)} hours)`);
-      cache.remove(key);
+      const ageHours = Math.round(cacheAge / 1000 / 60 / 60);
+      const maxAgeHours = Math.round(maxAge / 1000 / 60 / 60);
+      PlatformLogger.warn(`Cache expired for: ${key} (age: ${ageHours}h, max: ${maxAgeHours}h, type: ${data.dataType || 'unknown'})`);
+      CacheManager.remove(key);
       return null;
     }
 
-    Logger.log(`✅ Cache hit for: ${key} (age: ${Math.round(cacheAge / 1000 / 60)} minutes)`);
+    const ageMinutes = Math.round(cacheAge / 1000 / 60);
+    PlatformLogger.logCache('HIT', `${key} (age: ${ageMinutes}m, type: ${data.dataType || 'unknown'})`);
     return data.comps;
 
   } catch (error) {
-    Logger.log(`❌ Error reading cache: ${error}`);
+    PlatformLogger.error('Error reading cache: ' + error);
     return null;
   }
 }
 
 /**
  * Store comps data in cache
+ * Phase 2.5: Smart caching with differentiated durations
  *
  * @param {string} address - Property address
  * @param {string} city - City
  * @param {string} state - State
  * @param {string} zip - Zip code
  * @param {Array} comps - Comps data to cache
+ * @param {string} dataType - Type of data: 'comps', 'property', 'location', 'estimates', 'rates'
  * @returns {boolean} Success status
  */
-function setCachedComps(address, city, state, zip, comps) {
+function setCachedComps(address, city, state, zip, comps, dataType = 'comps') {
   try {
-    const cache = CacheService.getScriptCache();
     const key = generateCompsKey(address, city, state, zip);
 
     const data = {
@@ -98,27 +122,47 @@ function setCachedComps(address, city, state, zip, comps) {
       address: address,
       city: city,
       state: state,
-      zip: zip
+      zip: zip,
+      dataType: dataType
     };
 
-    const serialized = JSON.stringify(data);
-
-    // CacheService has a 100KB limit per entry
-    if (serialized.length > 100000) {
-      Logger.log(`⚠️ Cache data too large (${serialized.length} bytes), truncating comps`);
-      // Keep only first 10 comps if data is too large
-      data.comps = comps.slice(0, 10);
+    // Phase 2.5: Differentiated cache durations based on data type
+    let cacheDuration;
+    switch (dataType) {
+      case 'property':
+        cacheDuration = 30 * 24 * 60 * 60; // 30 days for property details
+        break;
+      case 'location':
+        cacheDuration = 30 * 24 * 60 * 60; // 30 days for location data (schools, scores)
+        break;
+      case 'comps':
+        cacheDuration = 7 * 24 * 60 * 60; // 7 days for comps
+        break;
+      case 'estimates':
+        cacheDuration = 7 * 24 * 60 * 60; // 7 days for ARV estimates
+        break;
+      case 'rates':
+        cacheDuration = 24 * 60 * 60; // 1 day for market rates
+        break;
+      default:
+        cacheDuration = 7 * 24 * 60 * 60; // Default 7 days
     }
 
-    // Cache for 6 hours (max allowed by CacheService)
-    // We'll check the timestamp for 24-hour expiration
-    cache.put(key, JSON.stringify(data), 21600); // 6 hours in seconds
+    // CacheService max is 6 hours, so we use timestamp for longer durations
+    const cacheServiceDuration = Math.min(cacheDuration, 21600); // 6 hours max
+    const success = CacheManager.set(key, data, cacheServiceDuration);
 
-    Logger.log(`💾 Cached ${comps.length} comps for: ${key}`);
-    return true;
+    if (success) {
+      const durationDays = Math.round(cacheDuration / 86400);
+      PlatformLogger.logCache('SET', `${key} (${comps.length} items, ${dataType}, ${durationDays}d TTL)`);
+    } else {
+      PlatformLogger.warn(`Failed to cache data for: ${key}`);
+    }
+
+    return success;
 
   } catch (error) {
-    Logger.log(`❌ Error writing cache: ${error}`);
+    PlatformLogger.error('Error writing cache: ' + error);
     return false;
   }
 }
@@ -134,13 +178,16 @@ function setCachedComps(address, city, state, zip, comps) {
  */
 function clearCachedComps(address, city, state, zip) {
   try {
-    const cache = CacheService.getScriptCache();
     const key = generateCompsKey(address, city, state, zip);
-    cache.remove(key);
-    Logger.log(`🗑️ Cleared cache for: ${key}`);
-    return true;
+    const success = CacheManager.remove(key);
+
+    if (success) {
+      PlatformLogger.logCache('CLEAR', key);
+    }
+
+    return success;
   } catch (error) {
-    Logger.log(`❌ Error clearing cache: ${error}`);
+    PlatformLogger.error('Error clearing cache: ' + error);
     return false;
   }
 }
@@ -153,12 +200,18 @@ function clearCachedComps(address, city, state, zip) {
  */
 function clearAllCache() {
   try {
-    const cache = CacheService.getScriptCache();
-    cache.removeAll(['comps_']); // Remove all keys starting with 'comps_'
-    Logger.log(`🗑️ Cleared all comps cache`);
-    return true;
+    // Note: CacheManager.clearByPrefix may not be fully supported on all platforms
+    const success = CacheManager.clearByPrefix('comps_');
+
+    if (success) {
+      PlatformLogger.logCache('CLEAR', 'all comps cache');
+    } else {
+      PlatformLogger.warn('clearByPrefix not fully supported on this platform');
+    }
+
+    return success;
   } catch (error) {
-    Logger.log(`❌ Error clearing all cache: ${error}`);
+    PlatformLogger.error('Error clearing all cache: ' + error);
     return false;
   }
 }
@@ -174,18 +227,25 @@ function clearAllCache() {
  */
 function getCacheStats(address, city, state, zip) {
   try {
-    const cache = CacheService.getScriptCache();
     const key = generateCompsKey(address, city, state, zip);
-    const cached = cache.get(key);
+    const exists = CacheManager.has(key);
 
-    if (!cached) {
+    if (!exists) {
       return {
         exists: false,
         key: key
       };
     }
 
-    const data = JSON.parse(cached);
+    const data = CacheManager.get(key);
+
+    if (!data) {
+      return {
+        exists: false,
+        key: key
+      };
+    }
+
     const now = new Date().getTime();
     const ageMinutes = Math.round((now - data.timestamp) / 1000 / 60);
     const ageHours = Math.round(ageMinutes / 60 * 10) / 10;
@@ -201,7 +261,7 @@ function getCacheStats(address, city, state, zip) {
     };
 
   } catch (error) {
-    Logger.log(`❌ Error getting cache stats: ${error}`);
+    PlatformLogger.error('Error getting cache stats: ' + error);
     return {
       exists: false,
       error: error.toString()
@@ -213,7 +273,7 @@ function getCacheStats(address, city, state, zip) {
  * Test function to verify cache functionality
  */
 function testCache() {
-  Logger.log("🧪 Testing cache functionality...");
+  PlatformLogger.info("🧪 Testing cache functionality...");
 
   const testAddress = "123 Test St";
   const testCity = "San Francisco";
@@ -226,29 +286,29 @@ function testCache() {
   ];
 
   // Test 1: Set cache
-  Logger.log("Test 1: Setting cache...");
+  PlatformLogger.info("Test 1: Setting cache...");
   const setResult = setCachedComps(testAddress, testCity, testState, testZip, testComps);
-  Logger.log(`Set result: ${setResult}`);
+  PlatformLogger.info(`Set result: ${setResult}`);
 
   // Test 2: Get cache
-  Logger.log("Test 2: Getting cache...");
+  PlatformLogger.info("Test 2: Getting cache...");
   const getResult = getCachedComps(testAddress, testCity, testState, testZip);
-  Logger.log(`Get result: ${JSON.stringify(getResult)}`);
+  PlatformLogger.info(`Get result: ${JSON.stringify(getResult)}`);
 
   // Test 3: Cache stats
-  Logger.log("Test 3: Cache stats...");
+  PlatformLogger.info("Test 3: Cache stats...");
   const stats = getCacheStats(testAddress, testCity, testState, testZip);
-  Logger.log(`Stats: ${JSON.stringify(stats, null, 2)}`);
+  PlatformLogger.info(`Stats: ${JSON.stringify(stats, null, 2)}`);
 
   // Test 4: Clear cache
-  Logger.log("Test 4: Clearing cache...");
+  PlatformLogger.info("Test 4: Clearing cache...");
   const clearResult = clearCachedComps(testAddress, testCity, testState, testZip);
-  Logger.log(`Clear result: ${clearResult}`);
+  PlatformLogger.info(`Clear result: ${clearResult}`);
 
   // Test 5: Verify cleared
-  Logger.log("Test 5: Verifying cache cleared...");
+  PlatformLogger.info("Test 5: Verifying cache cleared...");
   const verifyResult = getCachedComps(testAddress, testCity, testState, testZip);
-  Logger.log(`Verify result (should be null): ${verifyResult}`);
+  PlatformLogger.info(`Verify result (should be null): ${verifyResult}`);
 
-  Logger.log("✅ Cache tests complete!");
+  PlatformLogger.success("✅ Cache tests complete!");
 }

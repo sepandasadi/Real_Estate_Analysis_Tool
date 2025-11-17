@@ -1,6 +1,7 @@
 # Node modules
 web-app/node_modules/
 google-apps-script/node_modules/
+/node_modules/
 
 # Build outputs
 web-app/build/

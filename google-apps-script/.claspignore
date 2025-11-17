@@ -15,3 +15,7 @@ node_modules/
 # Ignore local development files
 .DS_Store
 *.log
+
+# IMPORTANT: Don't ignore shared-core (we want to push it)
+!shared-core/
+!shared-core/**/*.js

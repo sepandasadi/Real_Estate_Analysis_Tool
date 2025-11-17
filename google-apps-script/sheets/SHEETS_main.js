@@ -35,11 +35,14 @@ function onOpen() {
         .addItem("Calculate Partnership IRR", "updatePartnershipIRR")
         .addItem("Clear Partnership Tab", "clearPartnershipManagement"))
       .addSeparator()
+      .addItem("🧹 Clear API Cache", "clearAPICache")
+      .addItem("📊 Check API Usage", "showAPIUsage")
+      .addSeparator()
       .addItem("🏠 Auto-Populate Expenses (Tax & Insurance)", "autoPopulateExpenses")
-      .addItem("📊 Compare State Expenses", "compareStateExpenses")
+      .addItem("� Compare State Expenses", "compareStateExpenses")
       .addItem("🔍 Filter Comps (Date, Distance, Type)", "createFilteredCompsView")
       .addItem("💰 Tax Benefits & Depreciation", "generateTaxBenefitsAnalysis")
-      .addItem("📉 Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
+      .addItem("�📉 Advanced Metrics (IRR, NPV, Break-Even)", "generateAdvancedMetricsAnalysis")
       .addSeparator()
       .addSubMenu(ui.createMenu("Amortization")
         .addItem("First Year (12 months)", "generateFirstYearAmortization")
@@ -203,6 +206,121 @@ function unprotectAll() {
   } else {
     SpreadsheetApp.getUi().alert("ℹ️ No sheet protections found to remove.");
   }
+}
+
+/**
+ * Clear API Cache - Manual cache clearing functionality
+ * Allows users to clear all cached data or just current property
+ */
+function clearAPICache() {
+  const ui = SpreadsheetApp.getUi();
+
+  // Ask user what they want to clear
+  const response = ui.alert(
+    '🧹 Clear API Cache',
+    'What would you like to clear?\n\n' +
+    '• YES = Clear current property only (Recommended)\n' +
+    '• NO = View cache clearing options\n' +
+    '• CANCEL = Cancel operation',
+    ui.ButtonSet.YES_NO_CANCEL
+  );
+
+  if (response === ui.Button.YES) {
+    // Clear current property only
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const inputs = ss.getSheetByName("Inputs");
+
+    if (!inputs) {
+      ui.alert('❌ Inputs sheet not found');
+      return;
+    }
+
+    const data = {
+      address: getField("address", ""),
+      city: getField("city", ""),
+      state: getField("state", ""),
+      zip: getField("zip", "")
+    };
+
+    if (!data.address) {
+      ui.alert('⚠️ No property address found in Inputs sheet.\n\nPlease enter a property address first.');
+      return;
+    }
+
+    const success = clearCachedComps(data.address, data.city, data.state, data.zip);
+    if (success) {
+      ui.alert(`✅ Cache cleared for:\n\n${data.address}\n${data.city}, ${data.state} ${data.zip}\n\nNext analysis will fetch fresh data from APIs.`);
+    } else {
+      ui.alert('⚠️ Failed to clear cache for this property.');
+    }
+  } else if (response === ui.Button.NO) {
+    // Show information about cache clearing limitations
+    ui.alert(
+      '📋 Cache Clearing Options',
+      '⚠️ Platform Limitation:\n' +
+      'Google Apps Script does not support clearing all cache at once.\n\n' +
+      '✅ Available Options:\n\n' +
+      '1. Clear Current Property Cache\n' +
+      '   • Use this menu option and select YES\n' +
+      '   • Clears cache for the property in Inputs sheet\n\n' +
+      '2. Force Refresh Comps\n' +
+      '   • Use "🔄 Refresh Comps (Force)" from main menu\n' +
+      '   • Bypasses cache and fetches fresh data\n\n' +
+      '3. Wait for Auto-Expiration\n' +
+      '   • Cache expires automatically after 24 hours\n\n' +
+      'Tip: For best results, use option 1 or 2 above.',
+      ui.ButtonSet.OK
+    );
+  }
+  // If CANCEL, do nothing
+}
+
+/**
+ * Show API Usage and Cache Statistics
+ * Displays cache status, age, and size for current property
+ */
+function showAPIUsage() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const inputs = ss.getSheetByName("Inputs");
+
+  if (!inputs) {
+    SpreadsheetApp.getUi().alert("❌ Inputs sheet not found");
+    return;
+  }
+
+  const data = {
+    address: getField("address", ""),
+    city: getField("city", ""),
+    state: getField("state", ""),
+    zip: getField("zip", "")
+  };
+
+  if (!data.address) {
+    SpreadsheetApp.getUi().alert("⚠️ No property address found in Inputs sheet.\n\nEnter a property address to check cache status.");
+    return;
+  }
+
+  const stats = getCacheStats(data.address, data.city, data.state, data.zip);
+
+  let message = `📊 API Cache Status\n\n`;
+  message += `Property: ${data.address}\n`;
+  message += `Location: ${data.city}, ${data.state} ${data.zip}\n\n`;
+
+  if (stats.exists) {
+    message += `✅ Cache Status: ACTIVE\n`;
+    message += `📦 Comps Cached: ${stats.compsCount}\n`;
+    message += `⏰ Cache Age: ${stats.ageHours} hours (${stats.ageMinutes} minutes)\n`;
+    message += `📅 Cached On: ${stats.timestamp}\n`;
+    message += `💾 Cache Size: ${Math.round(stats.size / 1024)} KB\n\n`;
+    message += `ℹ️ Cache expires after 24 hours.\n\n`;
+    message += `Use "🔄 Refresh Comps (Force)" or "🧹 Clear API Cache" to fetch fresh data.`;
+  } else {
+    message += `❌ Cache Status: NOT CACHED\n\n`;
+    message += `This property has not been analyzed yet, or the cache has expired.\n\n`;
+    message += `Run "Run Full Analysis" to fetch and cache data.`;
+  }
+
+  SpreadsheetApp.getUi().alert(message);
 }
 
 function runAnalysis(data) {

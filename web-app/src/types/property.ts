@@ -53,9 +53,10 @@ export interface ComparableProperty {
   distance?: number;
   propertyUrl?: string;
   condition?: 'remodeled' | 'unremodeled' | 'unknown';
-  dataSource?: 'zillow' | 'api' | 'gemini' | 'synthetic';
+  // Phase 1.4: Enhanced comps with quality scoring and data source tracking
+  dataSource?: 'zillow' | 'zillow_property_comps' | 'us_real_estate_similar_homes' | 'us_real_estate_targeted' | 'api' | 'gemini' | 'synthetic';
   isReal?: boolean;
-  qualityScore?: number;
+  qualityScore?: number; // 95-100 for AI-matched, 90-94 for targeted, <90 for generic
 }
 
 export interface FlipAnalysis {
@@ -68,6 +69,26 @@ export interface FlipAnalysis {
   roi: number;
   holdingMonths: number;
   timeline: string;
+
+  // Phase 1.5: Multi-source ARV calculation
+  arvMethod?: string; // Description of calculation method used
+  arvSources?: {
+    comps?: number; // ARV from comps analysis (50% weight)
+    zillow?: number; // Zillow Zestimate (25% weight)
+    usRealEstate?: number; // US Real Estate estimate (25% weight)
+  };
+  confidenceScore?: number; // 0-100 confidence in ARV estimate
+
+  // Phase 2.3: Historical validation and market context
+  historicalValidation?: {
+    isValid: boolean; // True if ARV passes validation checks
+    deviation: number; // Percentage deviation from historical projection
+    warnings: string[]; // Array of validation warnings
+    historicalARV: number | null; // ARV based on historical appreciation
+    marketTrend: 'hot' | 'rising' | 'stable' | 'declining' | 'unknown'; // Market trend classification
+    trendEmoji: string; // Emoji indicator for market trend
+    appreciationRate: number; // Annual appreciation rate (e.g., 0.05 for 5%)
+  };
 }
 
 export interface RentalAnalysis {
