@@ -55,9 +55,33 @@ function createInputsSummary() {
   headerRange.setVerticalAlignment("middle");
   row += 2;
 
+  // === ANALYSIS MODE INDICATOR ===
+  const currentMode = getAnalysisMode();
+  const modeConfig = getAnalysisModeConfig(currentMode);
+  const modeRange = inputs.getRange(row, 4, 1, 4); // D3:G3
+  modeRange.merge();
+
+  let modeEmoji = '⭐';
+  let modeColor = SUMMARY_COLORS.PRIMARY;
+  if (currentMode === 'BASIC') {
+    modeEmoji = '⚡';
+    modeColor = '#9333ea'; // Purple
+  } else if (currentMode === 'DEEP') {
+    modeEmoji = '🚀';
+    modeColor = '#16a34a'; // Green
+  }
+
+  modeRange.setValue(`${modeEmoji} ${modeConfig.name}`);
+  modeRange.setFontWeight("bold");
+  modeRange.setFontSize(10);
+  modeRange.setBackground(modeColor);
+  modeRange.setFontColor(SUMMARY_COLORS.CARD);
+  modeRange.setHorizontalAlignment("center");
+  row++;
+
   // === PROPERTY INFO ===
   const address = getField("address", "No property analyzed yet");
-  const propertyRange = inputs.getRange(row, 4, 1, 4); // D3:G3
+  const propertyRange = inputs.getRange(row, 4, 1, 4); // D4:G4
   propertyRange.merge();
   propertyRange.setValue(address);
   propertyRange.setFontWeight("bold");
@@ -67,13 +91,23 @@ function createInputsSummary() {
   row++;
 
   // === LAST UPDATED ===
-  const timestampRange = inputs.getRange(row, 4, 1, 4); // D4:G4
+  const timestampRange = inputs.getRange(row, 4, 1, 4); // D5:G5
   timestampRange.merge();
   timestampRange.setValue(`Last Updated: ${new Date().toLocaleString()}`);
   timestampRange.setFontSize(8);
   timestampRange.setFontColor(SUMMARY_COLORS.TEXT_SECONDARY);
   timestampRange.setHorizontalAlignment("center");
   timestampRange.setFontStyle("italic");
+  row += 2;
+
+  // === API USAGE SUMMARY ===
+  const apiUsageRange = inputs.getRange(row, 4, 1, 4); // D7:G7
+  apiUsageRange.merge();
+  apiUsageRange.setValue(`API Calls: ${modeConfig.maxApiCalls} max • Capacity: ${modeConfig.estimatedMonthlyCapacity}`);
+  apiUsageRange.setFontSize(8);
+  apiUsageRange.setFontColor(SUMMARY_COLORS.TEXT_SECONDARY);
+  apiUsageRange.setHorizontalAlignment("center");
+  apiUsageRange.setFontStyle("italic");
   row += 2;
 
   // === FLIP METRICS CARD ===
@@ -209,14 +243,36 @@ function updateInputsSummary() {
     return;
   }
 
-  // Update timestamp
-  const timestampRange = inputs.getRange("D4:G4");
-  timestampRange.setValue(`Last Updated: ${new Date().toLocaleString()}`);
+  // Update analysis mode indicator
+  const currentMode = getAnalysisMode();
+  const modeConfig = getAnalysisModeConfig(currentMode);
+  const modeRange = inputs.getRange("D3:G3");
+
+  let modeEmoji = '⭐';
+  let modeColor = SUMMARY_COLORS.PRIMARY;
+  if (currentMode === 'BASIC') {
+    modeEmoji = '⚡';
+    modeColor = '#9333ea'; // Purple
+  } else if (currentMode === 'DEEP') {
+    modeEmoji = '🚀';
+    modeColor = '#16a34a'; // Green
+  }
+
+  modeRange.setValue(`${modeEmoji} ${modeConfig.name}`);
+  modeRange.setBackground(modeColor);
 
   // Update property address
   const address = getField("address", "No property analyzed yet");
-  const propertyRange = inputs.getRange("D3:G3");
+  const propertyRange = inputs.getRange("D4:G4");
   propertyRange.setValue(address);
+
+  // Update timestamp
+  const timestampRange = inputs.getRange("D5:G5");
+  timestampRange.setValue(`Last Updated: ${new Date().toLocaleString()}`);
+
+  // Update API usage summary
+  const apiUsageRange = inputs.getRange("D7:G7");
+  apiUsageRange.setValue(`API Calls: ${modeConfig.maxApiCalls} max • Capacity: ${modeConfig.estimatedMonthlyCapacity}`);
 
   // Update overall status based on analysis results
   try {
@@ -273,7 +329,7 @@ function updateInputsSummary() {
       statusColor = SUMMARY_COLORS.TEXT_SECONDARY;
     }
 
-    const statusRange = inputs.getRange("D17:G17");
+    const statusRange = inputs.getRange("D19:G19");
     statusRange.setValue(statusText);
     statusRange.setFontColor(statusColor);
     statusRange.setFontStyle("normal");

@@ -151,24 +151,35 @@ function retryWithBackoff(fn, maxRetries = 3, initialDelay = 1000) {
  * Priority: US Real Estate → Zillow → Gemini → Bridge
  * UPDATED: Phase 1.1 - Swapped API priority (US Real Estate now Priority 1 for 3x capacity)
  * UPDATED: Phase 1.4 - Now uses AI-matched similar homes (propertyComps & similarHomes)
+ * UPDATED: Phase 2.5 - Added analysisMode parameter for mode-based conditional logic
  * MIGRATED: Phase 0.6 - Now uses CacheManager, QuotaManager, and PlatformLogger
  *
  * @param {Object} data - Property data including address, city, state, zip, zpid (optional)
  * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data
+ * @param {string} analysisMode - Analysis mode (BASIC, STANDARD, DEEP) - defaults to current mode
  * @returns {Array} Array of comparable properties
  */
-function fetchCompsData(data, forceRefresh = false) {
+function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
+  // Get analysis mode if not provided
+  const mode = analysisMode || getAnalysisMode();
+
+  // Check if comps fetching is enabled for this mode
+  if (!isFeatureEnabled('compsData', mode)) {
+    PlatformLogger.info(`📊 Comps fetching disabled for ${mode} mode`);
+    return [];
+  }
+
   let comps = [];
 
   // Check cache first (unless force refresh)
   if (!forceRefresh) {
     const cachedComps = getCachedComps(data.address, data.city, data.state, data.zip);
     if (cachedComps && cachedComps.length > 0) {
-      PlatformLogger.info(`📦 Using cached comps (${cachedComps.length} properties)`);
+      PlatformLogger.info(`📦 Using cached comps (${cachedComps.length} properties) [${mode} mode]`);
       return cachedComps;
     }
   } else {
-    PlatformLogger.info("🔄 Force refresh requested, bypassing cache");
+    PlatformLogger.info(`🔄 Force refresh requested, bypassing cache [${mode} mode]`);
   }
 
   // Priority 1: Try US Real Estate Similar Homes (if quota available) - 300 requests/month

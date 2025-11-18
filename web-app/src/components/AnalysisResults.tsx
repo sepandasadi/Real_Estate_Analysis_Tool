@@ -15,11 +15,38 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({ results, onNewAnalysi
       {/* Header */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <div className="flex justify-between items-start">
-          <div>
+          <div className="flex-1">
             <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
             <p className="text-gray-600 mt-1">
               {property.address}, {property.city}, {property.state} {property.zip}
             </p>
+
+            {/* Analysis Mode & API Usage Indicator */}
+            {results.analysisMode && (
+              <div className="mt-3 flex items-center gap-3">
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  results.analysisMode === 'BASIC' ? 'bg-purple-100 text-purple-800' :
+                  results.analysisMode === 'STANDARD' ? 'bg-blue-100 text-blue-800' :
+                  'bg-green-100 text-green-800'
+                }`}>
+                  {results.analysisMode === 'BASIC' && '⚡ Basic Mode'}
+                  {results.analysisMode === 'STANDARD' && '⭐ Standard Mode'}
+                  {results.analysisMode === 'DEEP' && '🚀 Deep Mode'}
+                </span>
+
+                {results.apiCallCount !== undefined && (
+                  <span className="text-xs text-gray-500">
+                    📊 {results.apiCallCount} API call{results.apiCallCount !== 1 ? 's' : ''} used
+                  </span>
+                )}
+
+                {results.dataSource && (
+                  <span className="text-xs text-gray-500">
+                    {results.dataSource === 'user-provided' ? '👤 User-provided data' : '🌐 API-fetched data'}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <button
             onClick={onNewAnalysis}
