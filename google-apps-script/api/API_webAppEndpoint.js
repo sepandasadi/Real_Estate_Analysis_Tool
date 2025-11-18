@@ -101,6 +101,39 @@ function handleAnalyze(data) {
   // Validate required fields
   validateAnalysisData(data);
 
+  // Phase 2.5: Get analysis mode (defaults to STANDARD if not provided)
+  const analysisMode = data.analysisMode || getAnalysisMode();
+  Logger.log(`🔍 Analysis Mode: ${analysisMode}`);
+
+  // Route to appropriate mode-specific function
+  let result;
+  switch (analysisMode) {
+    case 'BASIC':
+      result = analyzePropertyBasicMode(data);
+      break;
+    case 'STANDARD':
+      result = analyzePropertyStandardMode(data);
+      break;
+    case 'DEEP':
+      result = analyzePropertyDeepMode(data);
+      break;
+    default:
+      Logger.log(`⚠️ Unknown analysis mode: ${analysisMode}, defaulting to STANDARD`);
+      result = analyzePropertyStandardMode(data);
+  }
+
+  // Add mode indicator and API usage summary to response
+  result.analysisMode = analysisMode;
+  result.apiUsageSummary = getApiUsageSummaryForMode(analysisMode);
+
+  return result;
+}
+
+/**
+ * Legacy full property analysis (kept for backward compatibility)
+ * This is now called by analyzePropertyStandardMode
+ */
+function handleAnalyzeLegacy(data) {
   // Step 1: Fetch property details (beds, baths, sqft)
   Logger.log("📋 Step 1: Fetching property details...");
   const propertyDetails = fetchPropertyDetails(data);
@@ -762,4 +795,46 @@ function generateInsights(flipAnalysis, rentalAnalysis, data) {
   }
 
   return insights;
+}
+
+/**
+ * Get API usage summary for a specific analysis mode
+ * Phase 2.5: Track API calls used per analysis
+ */
+function getApiUsageSummaryForMode(analysisMode) {
+  const config = getAnalysisModeConfig(analysisMode);
+
+  // Get current API usage
+  const scriptProperties = PropertiesService.getScriptProperties();
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentDay = now.toISOString().split('T')[0];
+
+  const zillowUsage = parseInt(scriptProperties.getProperty(`api_usage_zillow_${currentMonth}`) || '0');
+  const usRealEstateUsage = parseInt(scriptProperties.getProperty(`api_usage_usrealestate_${currentMonth}`) || '0');
+  const geminiUsage = parseInt(scriptProperties.getProperty(`api_usage_gemini_${currentDay}`) || '0');
+
+  return {
+    mode: analysisMode,
+    modeName: config.name,
+    estimatedCallsPerProperty: `${config.maxApiCalls}`,
+    estimatedMonthlyCapacity: config.estimatedMonthlyCapacity,
+    currentUsage: {
+      zillow: {
+        used: zillowUsage,
+        limit: 100,
+        remaining: 100 - zillowUsage
+      },
+      usRealEstate: {
+        used: usRealEstateUsage,
+        limit: 300,
+        remaining: 300 - usRealEstateUsage
+      },
+      gemini: {
+        used: geminiUsage,
+        limit: 1500,
+        remaining: 1500 - geminiUsage
+      }
+    }
+  };
 }

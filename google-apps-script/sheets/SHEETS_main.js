@@ -22,6 +22,7 @@ function onOpen() {
     .addItem("🔄 Refresh Summary Panel", "createInputsSummary")
     .addSeparator()
     .addItem("🔄 Toggle Simple/Advanced Mode", "toggleAnalysisMode")
+    .addItem("⚙️ Set Analysis Mode (Basic/Standard/Deep)", "showAnalysisModeSelector")
     .addSeparator()
     .addSubMenu(ui.createMenu("Advanced Tools")
       .addItem("📊 Interactive Scenario Analyzer", "showScenarioAnalyzer")
@@ -35,8 +36,10 @@ function onOpen() {
         .addItem("Calculate Partnership IRR", "updatePartnershipIRR")
         .addItem("Clear Partnership Tab", "clearPartnershipManagement"))
       .addSeparator()
-      .addItem("🧹 Clear API Cache", "clearAPICache")
       .addItem("📊 Check API Usage", "showAPIUsage")
+      .addItem("📊 API Usage Dashboard", "createAPIUsageDashboard")
+      .addItem("🔄 Reset Monthly API Usage", "resetMonthlyAPIUsage")
+      .addItem("🧹 Clear API Cache", "clearAPICache")
       .addSeparator()
       .addItem("🏠 Auto-Populate Expenses (Tax & Insurance)", "autoPopulateExpenses")
       .addItem("� Compare State Expenses", "compareStateExpenses")
@@ -338,6 +341,10 @@ function runAnalysis(data) {
     return;
   }
 
+  // Get analysis mode from data or use current mode
+  const analysisMode = data.analysisMode || getAnalysisMode();
+  Logger.log(`📊 Running analysis in ${analysisMode} mode`);
+
   // --- Calculate HELOC / Loan Amount ---
   const downPayment = (data.purchasePrice || 0) * (data.downPayment / 100 || 0.2);
   const totalProjectCost = downPayment + (data.rehabCost || 0);
@@ -414,8 +421,8 @@ function runAnalysis(data) {
     Logger.log("❌ Failed writing to Inputs tab: " + e);
   }
 
-  // Step 1: Fetch Comps (Sale + Rental)
-  const comps = fetchCompsData(data); // from apiBridge or apiOpenAI
+  // Step 1: Fetch Comps (Sale + Rental) - Pass analysis mode
+  const comps = fetchCompsData(data, false, analysisMode); // from apiBridge or apiOpenAI
   Logger.log("runAnalysis got comps count: " + (comps ? comps.length : 0));
 
   // Step 2: Run Flip Analysis
@@ -731,6 +738,83 @@ function clearSheets() {
   SpreadsheetApp.getUi().alert("🧹 All analysis sheets completely cleared!\n\nRemoved: Content, formatting, charts, borders, backgrounds, and conditional formatting.\n\nCleared: Analysis tabs, History, and all enhancement tabs.\n\nMode switched to Simple Mode with advanced tabs hidden.");
 }
 
+/**
+ * Phase 2.5: Show Analysis Mode Selector Dialog
+ * Allows users to select between Basic, Standard, and Deep analysis modes
+ */
+function showAnalysisModeSelector() {
+  const ui = SpreadsheetApp.getUi();
+
+  // Get current mode
+  const currentMode = getAnalysisMode();
+  const currentConfig = getAnalysisModeConfig(currentMode);
+
+  // Build mode selection message
+  let message = '⚙️ Select Analysis Mode\n\n';
+  message += `Current Mode: ${currentConfig.name}\n\n`;
+  message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+  // Get all modes
+  const modes = getAllAnalysisModes();
+
+  modes.forEach((modeObj, index) => {
+    const config = modeObj.config;
+    const isCurrentMode = modeObj.value === currentMode;
+    const marker = isCurrentMode ? '✓' : (index + 1);
+
+    message += `${marker}. ${config.name}\n`;
+    message += `   ${config.description}\n`;
+    message += `   API Calls: ${config.maxApiCalls} per property\n`;
+    message += `   Capacity: ${config.estimatedMonthlyCapacity}\n`;
+    message += `   ${config.tooltip}\n\n`;
+  });
+
+  message += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+  message += 'Enter mode number (1-3) or click Cancel:';
+
+  // Show prompt
+  const response = ui.prompt(
+    '⚙️ Analysis Mode Selection',
+    message,
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() === ui.Button.OK) {
+    const input = response.getResponseText().trim();
+
+    // Map input to mode
+    let selectedMode = null;
+    if (input === '1') {
+      selectedMode = ANALYSIS_MODE.BASIC;
+    } else if (input === '2') {
+      selectedMode = ANALYSIS_MODE.STANDARD;
+    } else if (input === '3') {
+      selectedMode = ANALYSIS_MODE.DEEP;
+    } else {
+      ui.alert('⚠️ Invalid selection. Please enter 1, 2, or 3.');
+      return;
+    }
+
+    // Set the mode
+    const success = setAnalysisMode(selectedMode);
+
+    if (success) {
+      const newConfig = getAnalysisModeConfig(selectedMode);
+      ui.alert(
+        '✅ Analysis Mode Updated',
+        `Mode changed to: ${newConfig.name}\n\n` +
+        `${newConfig.description}\n\n` +
+        `API Calls: ${newConfig.maxApiCalls} per property\n` +
+        `Capacity: ${newConfig.estimatedMonthlyCapacity}\n\n` +
+        `This mode will be used for all future analyses.`,
+        ui.ButtonSet.OK
+      );
+    } else {
+      ui.alert('❌ Failed to update analysis mode. Please try again.');
+    }
+  }
+}
+
 // ============================================================================
 // EXPORTS - Make helper functions available globally
 // ============================================================================
@@ -738,4 +822,5 @@ function clearSheets() {
 if (typeof global !== 'undefined') {
   global.getFlipMetric = getFlipMetric;
   global.getRentalMetric = getRentalMetric;
+  global.showAnalysisModeSelector = showAnalysisModeSelector;
 }

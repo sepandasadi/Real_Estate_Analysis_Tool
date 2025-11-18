@@ -23,12 +23,28 @@
     hr{border:none;border-top:1px solid var(--border);margin:12px 0}
     #overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.85);
       display:none;align-items:center;justify-content:center;z-index:9999;font-size:16px;color:#333}
+    .mode-section{display:none;margin-top:12px;padding:12px;background:#f0f4ff;border:1px solid #b8d4ff;border-radius:8px}
+    .mode-section.active{display:block}
+    .mode-label{font-size:12px;font-weight:700;color:#1a73e8;margin-bottom:8px;display:block}
   </style>
 </head>
 <body>
   <div id="overlay">⏳ Running Analysis… Please wait</div>
 
   <h2>🏡 REI Assistant</h2>
+
+  <!-- Analysis Mode Selector -->
+  <div class="section">
+    <label>Analysis Mode</label>
+    <select id="analysisMode" onchange="updateModeDescription()">
+      <option value="BASIC">⚡ Basic Mode (0-1 API calls)</option>
+      <option value="STANDARD" selected>⭐ Standard Mode (2-4 API calls)</option>
+      <option value="DEEP">🚀 Deep Mode (8-12 API calls)</option>
+    </select>
+    <small id="modeDescription" style="display:block;margin-top:6px;line-height:1.4">
+      Hybrid approach: Auto-fetch property details and comps. Optional ARV override.
+    </small>
+  </div>
 
   <!-- Property -->
   <div class="section">
@@ -39,6 +55,19 @@
       <input id="state" placeholder="State" />
     </div>
     <input style="margin:3px" id="zip" placeholder="ZIP Code" />
+
+    <!-- Basic Mode: Property Details -->
+    <div id="basicModeFields" class="mode-section">
+      <span class="mode-label">⚡ Basic Mode: Property Details</span>
+      <div class="input-group">
+        <div><label>Beds</label><input id="beds" type="number" placeholder="3" min="0" step="1" /></div>
+        <div><label>Baths</label><input id="baths" type="number" placeholder="2" min="0" step="0.5" /></div>
+      </div>
+      <div class="input-group">
+        <div><label>Sqft</label><input id="sqft" type="number" placeholder="1500" min="0" step="100" /></div>
+        <div><label>Year Built</label><input id="yearBuilt" type="number" placeholder="2000" min="1800" max="2025" step="1" /></div>
+      </div>
+    </div>
   </div>
 
   <!-- Financing -->
@@ -66,10 +95,27 @@
     </div>
   </div>
 
+  <!-- Basic Mode: ARV Input -->
+  <div id="basicModeARV" class="mode-section">
+    <span class="mode-label">⚡ Basic Mode: ARV (Required)</span>
+    <label>After Repair Value ($)</label>
+    <input id="arv" type="number" placeholder="e.g. 400000" min="0" step="1000" />
+    <small style="display:block;margin-top:4px;">Provide your estimated ARV or add comps below to calculate automatically.</small>
+  </div>
+
+  <!-- Standard Mode: Optional ARV Override -->
+  <div id="standardModeARV" class="mode-section">
+    <span class="mode-label">⭐ Standard Mode: ARV Override (Optional)</span>
+    <label>After Repair Value ($)</label>
+    <input id="arvOverride" type="number" placeholder="Leave blank to auto-calculate" min="0" step="1000" />
+    <small style="display:block;margin-top:4px;">Auto-calculated from comps if left blank. Provide value to override.</small>
+  </div>
+  </div>
+
   <!-- Main Action -->
   <div class="section" style="text-align:center;">
     <button onclick="runAnalysis()">🚀 Run Full Analysis</button>
-    <small>This will generate Flip & Rental analyses with comps and scenarios.</small>
+    <small id="analysisNote">This will generate Flip & Rental analyses with comps and scenarios.</small>
   </div>
 
   <!-- Developer Tools -->
@@ -84,6 +130,92 @@
 
   <script>
     function showOverlay(show){document.getElementById("overlay").style.display=show?"flex":"none"}
+
+    function updateModeDescription() {
+      const mode = document.getElementById("analysisMode").value;
+      const previousMode = document.getElementById("analysisMode").getAttribute("data-previous-mode") || "STANDARD";
+
+      // Check if trying to switch to DEEP mode
+      if (mode === "DEEP" && previousMode !== "DEEP") {
+        // Prompt for password
+        const password = prompt("🔒 Deep Mode is password protected.\n\nEnter password to unlock:");
+
+        if (password) {
+          // Validate password via server
+          google.script.run
+            .withSuccessHandler(function(isValid) {
+              if (isValid) {
+                // Password correct - allow mode change
+                document.getElementById("analysisMode").setAttribute("data-previous-mode", "DEEP");
+                applyModeChanges("DEEP");
+              } else {
+                // Password incorrect - revert to previous mode
+                alert("❌ Incorrect password. Deep Mode access denied.");
+                document.getElementById("analysisMode").value = previousMode;
+                applyModeChanges(previousMode);
+              }
+            })
+            .withFailureHandler(function(error) {
+              alert("❌ Error validating password: " + error);
+              document.getElementById("analysisMode").value = previousMode;
+              applyModeChanges(previousMode);
+            })
+            .validateDeepModePassword(password);
+        } else {
+          // No password entered - revert to previous mode
+          document.getElementById("analysisMode").value = previousMode;
+          applyModeChanges(previousMode);
+        }
+      } else {
+        // Not switching to DEEP or already in DEEP - apply changes normally
+        document.getElementById("analysisMode").setAttribute("data-previous-mode", mode);
+        applyModeChanges(mode);
+      }
+    }
+
+    function applyModeChanges(mode) {
+      const desc = document.getElementById("modeDescription");
+      const note = document.getElementById("analysisNote");
+
+      const descriptions = {
+        BASIC: "Manual input: You provide all property details, ARV, and comparable properties. Minimal API usage.",
+        STANDARD: "Hybrid approach: Auto-fetch property details and comps. Optional ARV override.",
+        DEEP: "Full automation: All data auto-fetched including property details, comps, and ARV calculation."
+      };
+
+      const notes = {
+        BASIC: "Note: Basic Mode requires manual input of property details and comps.",
+        STANDARD: "This will generate Flip & Rental analyses with comps and scenarios.",
+        DEEP: "This will generate comprehensive analyses with full automation and AI insights."
+      };
+
+      desc.textContent = descriptions[mode] || descriptions.STANDARD;
+      note.textContent = notes[mode] || notes.STANDARD;
+
+      // Show/hide mode-specific sections
+      const basicFields = document.getElementById("basicModeFields");
+      const basicARV = document.getElementById("basicModeARV");
+      const standardARV = document.getElementById("standardModeARV");
+
+      // Hide all mode sections first
+      basicFields.classList.remove("active");
+      basicARV.classList.remove("active");
+      standardARV.classList.remove("active");
+
+      // Show sections based on selected mode
+      if (mode === "BASIC") {
+        basicFields.classList.add("active");
+        basicARV.classList.add("active");
+      } else if (mode === "STANDARD") {
+        standardARV.classList.add("active");
+      }
+      // DEEP mode shows no extra fields (full automation)
+    }
+
+    // Initialize mode description on load
+    window.onload = function() {
+      updateModeDescription();
+    };
 
     function validateInputs() {
       const errors = [];
@@ -129,6 +261,8 @@
         return;
       }
 
+      const analysisMode = document.getElementById("analysisMode").value;
+
       const data = {
         address: document.getElementById("address").value.trim(),
         city: document.getElementById("city").value.trim(),
@@ -141,12 +275,37 @@
         loanInterestRate: +document.getElementById("loanInterestRate").value,
         loanTerm: +document.getElementById("loanTerm").value,
         rehabCost: +document.getElementById("rehabCost").value,
-        monthsToFlip: +document.getElementById("monthsToFlip").value
+        monthsToFlip: +document.getElementById("monthsToFlip").value,
+        analysisMode: analysisMode
       };
+
+      // Add mode-specific fields
+      if (analysisMode === "BASIC") {
+        // Basic Mode: Include property details and ARV
+        const beds = document.getElementById("beds").value;
+        const baths = document.getElementById("baths").value;
+        const sqft = document.getElementById("sqft").value;
+        const yearBuilt = document.getElementById("yearBuilt").value;
+        const arv = document.getElementById("arv").value;
+
+        if (beds) data.beds = +beds;
+        if (baths) data.baths = +baths;
+        if (sqft) data.sqft = +sqft;
+        if (yearBuilt) data.yearBuilt = +yearBuilt;
+        if (arv) data.arv = +arv;
+      } else if (analysisMode === "STANDARD") {
+        // Standard Mode: Include optional ARV override
+        const arvOverride = document.getElementById("arvOverride").value;
+        if (arvOverride) data.arv = +arvOverride;
+      }
+      // DEEP mode: No extra fields needed (full automation)
 
       showOverlay(true);
       google.script.run
-        .withSuccessHandler(()=>showOverlay(false))
+        .withSuccessHandler(()=>{
+          showOverlay(false);
+          alert("Analysis complete! Check the generated sheets for results.");
+        })
         .withFailureHandler((err)=>{showOverlay(false);alert("Error running analysis: " + err);})
         .runAnalysis(data);
     }

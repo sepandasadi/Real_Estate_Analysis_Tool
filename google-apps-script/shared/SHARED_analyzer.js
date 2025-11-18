@@ -14,6 +14,574 @@ function isSimpleMode() {
   }
 }
 
+// ============================================================================
+// PHASE 2.5: MODE-SPECIFIC ANALYSIS FUNCTIONS
+// ============================================================================
+
+/**
+ * Validate user-provided data for Basic Mode
+ * @param {Object} data - User-provided property data
+ * @returns {Object} Validation result with errors and warnings
+ */
+function validateUserProvidedData(data) {
+  const errors = [];
+  const warnings = [];
+
+  // Required fields for Basic Mode
+  const requiredFields = ['address', 'beds', 'baths', 'sqft', 'yearBuilt'];
+
+  requiredFields.forEach(field => {
+    if (!data[field] || data[field] === '') {
+      errors.push(`Missing required field: ${field}`);
+    }
+  });
+
+  // Validate numeric fields
+  if (data.beds && (data.beds < 0 || data.beds > 20)) {
+    warnings.push('Beds count seems unusual (expected 0-20)');
+  }
+
+  if (data.baths && (data.baths < 0 || data.baths > 10)) {
+    warnings.push('Baths count seems unusual (expected 0-10)');
+  }
+
+  if (data.sqft && (data.sqft < 100 || data.sqft > 50000)) {
+    warnings.push('Square footage seems unusual (expected 100-50,000)');
+  }
+
+  if (data.yearBuilt) {
+    const currentYear = new Date().getFullYear();
+    if (data.yearBuilt < 1800 || data.yearBuilt > currentYear + 2) {
+      warnings.push(`Year built seems unusual (expected 1800-${currentYear + 2})`);
+    }
+  }
+
+  // Validate ARV if provided
+  if (data.arv && data.arv < 10000) {
+    warnings.push('ARV seems unusually low (expected > $10,000)');
+  }
+
+  // Validate comps if provided
+  if (data.comps && Array.isArray(data.comps)) {
+    if (data.comps.length < 3) {
+      warnings.push('Fewer than 3 comps provided - ARV calculation may be less accurate');
+    }
+
+    data.comps.forEach((comp, index) => {
+      if (!comp.price || comp.price < 1000) {
+        warnings.push(`Comp ${index + 1}: Price seems unusually low`);
+      }
+      if (!comp.sqft || comp.sqft < 100) {
+        warnings.push(`Comp ${index + 1}: Square footage missing or unusually low`);
+      }
+    });
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
+/**
+ * Analyze property in Basic Mode (0-1 API calls)
+ * User provides all property details and comps
+ *
+ * @param {Object} data - Property data with user-provided details
+ * @returns {Object} Analysis result
+ */
+function analyzePropertyBasicMode(data) {
+  PlatformLogger.info('🔵 Starting Basic Mode Analysis (0-1 API calls)');
+
+  const startTime = new Date();
+  let apiCallCount = 0;
+
+  // Validate user-provided data
+  const validation = validateUserProvidedData(data);
+  if (!validation.isValid) {
+    PlatformLogger.error(`❌ Validation failed: ${validation.errors.join(', ')}`);
+    return {
+      success: false,
+      error: 'Validation failed',
+      validationErrors: validation.errors,
+      validationWarnings: validation.warnings
+    };
+  }
+
+  if (validation.warnings.length > 0) {
+    PlatformLogger.warn(`⚠️ Validation warnings: ${validation.warnings.join(', ')}`);
+  }
+
+  // Use user-provided property details
+  const propertyDetails = {
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip: data.zip,
+    beds: data.beds,
+    baths: data.baths,
+    sqft: data.sqft,
+    yearBuilt: data.yearBuilt,
+    lotSize: data.lotSize || null,
+    propertyType: data.propertyType || 'Single Family'
+  };
+
+  // Calculate ARV from user-provided comps or use user-provided ARV
+  let arv = 0;
+  let arvCalculationMethod = 'User-provided';
+
+  if (data.arv) {
+    // User provided ARV directly
+    arv = data.arv;
+    arvCalculationMethod = 'User-provided ARV';
+    PlatformLogger.info(`💰 Using user-provided ARV: $${arv.toLocaleString()}`);
+  } else if (data.comps && data.comps.length > 0) {
+    // Calculate ARV from user-provided comps
+    const avgPrice = data.comps.reduce((sum, comp) => sum + comp.price, 0) / data.comps.length;
+    arv = avgPrice;
+    arvCalculationMethod = `Calculated from ${data.comps.length} user-provided comps`;
+    PlatformLogger.info(`💰 Calculated ARV from comps: $${arv.toLocaleString()}`);
+  } else {
+    PlatformLogger.error('❌ No ARV or comps provided');
+    return {
+      success: false,
+      error: 'Must provide either ARV or comps in Basic Mode'
+    };
+  }
+
+  // Optional: Validate tax rate (1 API call if enabled)
+  let taxRateValidated = false;
+  if (data.validateTaxRate && data.city && data.state) {
+    try {
+      const taxData = fetchPropertyTaxRate(data.city, data.state);
+      if (taxData && taxData.rate) {
+        propertyDetails.propertyTaxRate = taxData.rate;
+        taxRateValidated = true;
+        apiCallCount++;
+        PlatformLogger.success(`✅ Tax rate validated: ${(taxData.rate * 100).toFixed(2)}%`);
+      }
+    } catch (e) {
+      PlatformLogger.warn(`⚠️ Tax rate validation failed: ${e.message}`);
+    }
+  }
+
+  const endTime = new Date();
+  const duration = (endTime - startTime) / 1000;
+
+  PlatformLogger.success(`✅ Basic Mode Analysis completed in ${duration.toFixed(2)}s`);
+  PlatformLogger.info(`📊 API calls used: ${apiCallCount}`);
+
+  return {
+    success: true,
+    mode: 'BASIC',
+    propertyDetails,
+    arv,
+    arvCalculationMethod,
+    comps: data.comps || [],
+    apiCallCount,
+    duration,
+    taxRateValidated,
+    validationWarnings: validation.warnings,
+    dataSource: 'user-provided'
+  };
+}
+
+/**
+ * Analyze property in Standard Mode (2-4 API calls)
+ * Fetch property details and comps automatically
+ *
+ * @param {Object} data - Property data with address
+ * @returns {Object} Analysis result
+ */
+function analyzePropertyStandardMode(data) {
+  PlatformLogger.info('🟡 Starting Standard Mode Analysis (2-4 API calls)');
+
+  const startTime = new Date();
+  let apiCallCount = 0;
+
+  // Validate address
+  if (!data.address || !data.city || !data.state) {
+    PlatformLogger.error('❌ Address, city, and state are required for Standard Mode');
+    return {
+      success: false,
+      error: 'Address, city, and state are required'
+    };
+  }
+
+  try {
+    // 1. Fetch property details (1 API call)
+    PlatformLogger.info('📍 Fetching property details...');
+    const propertyDetails = fetchPropertyDetails({
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip
+    });
+    apiCallCount++;
+
+    if (!propertyDetails) {
+      throw new Error('Failed to fetch property details');
+    }
+
+    PlatformLogger.success(`✅ Property details fetched: ${propertyDetails.beds} bed, ${propertyDetails.baths} bath, ${propertyDetails.sqft} sqft`);
+
+    // 2. Fetch comps (1 API call)
+    PlatformLogger.info('🏘️ Fetching comparable properties...');
+    const comps = fetchCompsData({
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip
+    });
+    apiCallCount++;
+
+    if (!comps || comps.length === 0) {
+      PlatformLogger.warn('⚠️ No comps found');
+    } else {
+      PlatformLogger.success(`✅ Found ${comps.length} comparable properties`);
+    }
+
+    // 3. Calculate ARV from comps
+    let arv = 0;
+    let arvCalculationMethod = 'Standard Mode';
+
+    if (comps && comps.length > 0) {
+      const avgPrice = comps.reduce((sum, comp) => sum + (comp.price || 0), 0) / comps.length;
+      arv = avgPrice;
+      arvCalculationMethod = `Calculated from ${comps.length} comps (Standard Mode)`;
+      PlatformLogger.info(`💰 Calculated ARV: $${arv.toLocaleString()}`);
+    } else {
+      // Fallback: Use purchase price + 20%
+      arv = data.purchasePrice ? data.purchasePrice * 1.20 : 0;
+      arvCalculationMethod = 'Fallback: Purchase price + 20%';
+      PlatformLogger.warn(`⚠️ Using fallback ARV: $${arv.toLocaleString()}`);
+    }
+
+    // 4. Optional: Fetch rental estimate (1 API call)
+    let rentEstimate = null;
+    if (data.includeRentalAnalysis && propertyDetails.zpid) {
+      try {
+        PlatformLogger.info('🏠 Fetching rental estimate...');
+        const rentalData = fetchRentalEstimate(propertyDetails.zpid);
+        if (rentalData && rentalData.rentEstimate) {
+          rentEstimate = rentalData.rentEstimate;
+          apiCallCount++;
+          PlatformLogger.success(`✅ Rental estimate: $${rentEstimate.toLocaleString()}/month`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Rental estimate fetch failed: ${e.message}`);
+      }
+    }
+
+    // 5. Optional: Validate tax rate (1 API call)
+    let taxRateValidated = false;
+    if (data.validateTaxRate) {
+      try {
+        const taxData = fetchPropertyTaxRate(data.city, data.state);
+        if (taxData && taxData.rate) {
+          propertyDetails.propertyTaxRate = taxData.rate;
+          taxRateValidated = true;
+          apiCallCount++;
+          PlatformLogger.success(`✅ Tax rate validated: ${(taxData.rate * 100).toFixed(2)}%`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Tax rate validation failed: ${e.message}`);
+      }
+    }
+
+    const endTime = new Date();
+    const duration = (endTime - startTime) / 1000;
+
+    PlatformLogger.success(`✅ Standard Mode Analysis completed in ${duration.toFixed(2)}s`);
+    PlatformLogger.info(`📊 API calls used: ${apiCallCount}`);
+
+    return {
+      success: true,
+      mode: 'STANDARD',
+      propertyDetails,
+      arv,
+      arvCalculationMethod,
+      comps: comps || [],
+      rentEstimate,
+      apiCallCount,
+      duration,
+      taxRateValidated,
+      dataSource: 'api-fetched'
+    };
+
+  } catch (error) {
+    PlatformLogger.error(`❌ Standard Mode Analysis failed: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+      apiCallCount
+    };
+  }
+}
+
+/**
+ * Analyze property in Deep Mode (8-12 API calls)
+ * Full automation with historical validation and market analysis
+ *
+ * @param {Object} data - Property data with address
+ * @param {Object} options - Optional feature flags
+ * @returns {Object} Analysis result
+ */
+function analyzePropertyDeepMode(data, options = {}) {
+  PlatformLogger.info('🔴 Starting Deep Mode Analysis (8-12 API calls)');
+
+  const startTime = new Date();
+  let apiCallCount = 0;
+
+  // Default options
+  const opts = {
+    includeHistoricalValidation: options.includeHistoricalValidation !== false,
+    includeMarketTrends: options.includeMarketTrends !== false,
+    includeRentalAnalysis: options.includeRentalAnalysis !== false,
+    includeLocationQuality: options.includeLocationQuality !== false,
+    ...options
+  };
+
+  // Validate address
+  if (!data.address || !data.city || !data.state) {
+    PlatformLogger.error('❌ Address, city, and state are required for Deep Mode');
+    return {
+      success: false,
+      error: 'Address, city, and state are required'
+    };
+  }
+
+  try {
+    // 1. Fetch property details (1 API call)
+    PlatformLogger.info('📍 Fetching property details...');
+    const propertyDetails = fetchPropertyDetails({
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip
+    });
+    apiCallCount++;
+
+    if (!propertyDetails) {
+      throw new Error('Failed to fetch property details');
+    }
+
+    PlatformLogger.success(`✅ Property details fetched: ${propertyDetails.beds} bed, ${propertyDetails.baths} bath, ${propertyDetails.sqft} sqft`);
+
+    // 2. Fetch comps (1 API call)
+    PlatformLogger.info('🏘️ Fetching comparable properties...');
+    const comps = fetchCompsData({
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip
+    });
+    apiCallCount++;
+
+    if (!comps || comps.length === 0) {
+      PlatformLogger.warn('⚠️ No comps found');
+    } else {
+      PlatformLogger.success(`✅ Found ${comps.length} comparable properties`);
+    }
+
+    // 3. Fetch Zillow Zestimate (1 API call)
+    let zillowEstimate = null;
+    if (propertyDetails.zpid) {
+      try {
+        PlatformLogger.info('💰 Fetching Zillow Zestimate...');
+        const zestimate = fetchZillowZestimate(propertyDetails.zpid);
+        if (zestimate && zestimate.zestimate) {
+          zillowEstimate = zestimate.zestimate;
+          apiCallCount++;
+          PlatformLogger.success(`✅ Zillow Zestimate: $${zillowEstimate.toLocaleString()}`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Zillow Zestimate fetch failed: ${e.message}`);
+      }
+    }
+
+    // 4. Fetch US Real Estate estimate (1 API call)
+    let usRealEstateEstimate = null;
+    try {
+      PlatformLogger.info('🏡 Fetching US Real Estate estimate...');
+      const propertyId = getUSRealEstatePropertyId({
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        zip: data.zip
+      });
+
+      if (propertyId) {
+        const usEstimate = fetchUSRealEstateHomeEstimate(propertyId);
+        if (usEstimate && usEstimate.estimate) {
+          usRealEstateEstimate = usEstimate.estimate;
+          apiCallCount++;
+          PlatformLogger.success(`✅ US Real Estate Estimate: $${usRealEstateEstimate.toLocaleString()}`);
+        }
+      }
+    } catch (e) {
+      PlatformLogger.warn(`⚠️ US Real Estate estimate fetch failed: ${e.message}`);
+    }
+
+    // 5. Calculate multi-source weighted ARV
+    const arvSources = {
+      comps: null,
+      zillow: zillowEstimate,
+      usRealEstate: usRealEstateEstimate
+    };
+
+    // Calculate ARV from comps
+    if (comps && comps.length > 0) {
+      const avgPrice = comps.reduce((sum, comp) => sum + (comp.price || 0), 0) / comps.length;
+      arvSources.comps = avgPrice;
+    }
+
+    // Calculate weighted ARV
+    const availableSources = [];
+    if (arvSources.comps) availableSources.push({ name: 'comps', value: arvSources.comps, weight: 0.50 });
+    if (arvSources.zillow) availableSources.push({ name: 'zillow', value: arvSources.zillow, weight: 0.25 });
+    if (arvSources.usRealEstate) availableSources.push({ name: 'us_real_estate', value: arvSources.usRealEstate, weight: 0.25 });
+
+    let arv = 0;
+    let arvCalculationMethod = 'Deep Mode Multi-Source';
+
+    if (availableSources.length === 0) {
+      arv = data.purchasePrice ? data.purchasePrice * 1.20 : 0;
+      arvCalculationMethod = 'Fallback: Purchase price + 20%';
+    } else if (availableSources.length === 1) {
+      arv = availableSources[0].value;
+      arvCalculationMethod = `Single source: ${availableSources[0].name}`;
+    } else {
+      const totalWeight = availableSources.reduce((sum, s) => sum + s.weight, 0);
+      arv = availableSources.reduce((sum, s) => sum + (s.value * s.weight / totalWeight), 0);
+      arvCalculationMethod = `Multi-source weighted (${availableSources.length} sources)`;
+    }
+
+    PlatformLogger.success(`💰 Final ARV: $${arv.toLocaleString()} (${arvCalculationMethod})`);
+
+    // 6. Historical validation (2-4 API calls)
+    let historicalValidation = null;
+    if (opts.includeHistoricalValidation && propertyDetails.zpid) {
+      try {
+        PlatformLogger.info('📊 Running historical validation...');
+        historicalValidation = validateARVAgainstMarketTrends(
+          arv,
+          propertyDetails.zpid,
+          `${data.city}, ${data.state}`
+        );
+        apiCallCount += 3; // Estimate: property history + market trends
+
+        if (historicalValidation) {
+          PlatformLogger.success(`✅ Historical validation: ${historicalValidation.isValid ? 'Valid' : 'Needs review'}`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Historical validation failed: ${e.message}`);
+      }
+    }
+
+    // 7. Market trends analysis (2-3 API calls)
+    let marketTrends = null;
+    if (opts.includeMarketTrends) {
+      try {
+        PlatformLogger.info('📈 Fetching market trends...');
+        marketTrends = fetchMarketTrends(`${data.city}, ${data.state}`);
+        apiCallCount += 2; // Estimate
+
+        if (marketTrends) {
+          PlatformLogger.success(`✅ Market trends fetched`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Market trends fetch failed: ${e.message}`);
+      }
+    }
+
+    // 8. Rental analysis (1 API call)
+    let rentEstimate = null;
+    if (opts.includeRentalAnalysis && propertyDetails.zpid) {
+      try {
+        PlatformLogger.info('🏠 Fetching rental estimate...');
+        const rentalData = fetchRentalEstimate(propertyDetails.zpid);
+        if (rentalData && rentalData.rentEstimate) {
+          rentEstimate = rentalData.rentEstimate;
+          apiCallCount++;
+          PlatformLogger.success(`✅ Rental estimate: $${rentEstimate.toLocaleString()}/month`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Rental estimate fetch failed: ${e.message}`);
+      }
+    }
+
+    // 9. Location quality analysis (1-2 API calls)
+    let locationQuality = null;
+    if (opts.includeLocationQuality) {
+      try {
+        PlatformLogger.info('📍 Analyzing location quality...');
+        locationQuality = analyzeLocationQuality({
+          address: data.address,
+          city: data.city,
+          state: data.state,
+          zip: data.zip
+        });
+        apiCallCount += 2; // Estimate
+
+        if (locationQuality) {
+          PlatformLogger.success(`✅ Location quality analyzed`);
+        }
+      } catch (e) {
+        PlatformLogger.warn(`⚠️ Location quality analysis failed: ${e.message}`);
+      }
+    }
+
+    // 10. Tax rate validation (1 API call)
+    let taxRateValidated = false;
+    try {
+      const taxData = fetchPropertyTaxRate(data.city, data.state);
+      if (taxData && taxData.rate) {
+        propertyDetails.propertyTaxRate = taxData.rate;
+        taxRateValidated = true;
+        apiCallCount++;
+        PlatformLogger.success(`✅ Tax rate validated: ${(taxData.rate * 100).toFixed(2)}%`);
+      }
+    } catch (e) {
+      PlatformLogger.warn(`⚠️ Tax rate validation failed: ${e.message}`);
+    }
+
+    const endTime = new Date();
+    const duration = (endTime - startTime) / 1000;
+
+    PlatformLogger.success(`✅ Deep Mode Analysis completed in ${duration.toFixed(2)}s`);
+    PlatformLogger.info(`📊 API calls used: ${apiCallCount}`);
+
+    return {
+      success: true,
+      mode: 'DEEP',
+      propertyDetails,
+      arv,
+      arvCalculationMethod,
+      arvSources,
+      comps: comps || [],
+      historicalValidation,
+      marketTrends,
+      rentEstimate,
+      locationQuality,
+      apiCallCount,
+      duration,
+      taxRateValidated,
+      dataSource: 'api-fetched',
+      featuresUsed: opts
+    };
+
+  } catch (error) {
+    PlatformLogger.error(`❌ Deep Mode Analysis failed: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+      apiCallCount
+    };
+  }
+}
+
 /**
  * Generate Flip Analysis Report
  * Includes: Project Summary, Cost Breakdown, Comps, Profit & ROI, Scenarios
@@ -32,10 +600,25 @@ function generateFlipAnalysis(comps) {
   titleRange.setBackground("#1a73e8");
   titleRange.setFontColor("white");
 
-  sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString())
+  // Get current analysis mode and display it
+  const currentMode = getAnalysisMode();
+  const modeConfig = getAnalysisModeConfig(currentMode);
+
+  let modeEmoji = '⭐';
+  if (currentMode === 'BASIC') modeEmoji = '⚡';
+  else if (currentMode === 'DEEP') modeEmoji = '🚀';
+
+  sheet.getRange("A2").setValue(`${modeEmoji} ${modeConfig.name} • Generated: ${new Date().toLocaleString()}`)
     .setFontSize(9)
     .setFontColor("#666666");
-  let row = 4;
+
+  // Add API usage indicator
+  sheet.getRange("A3").setValue(`API Calls: Up to ${modeConfig.maxApiCalls} • ${modeConfig.estimatedMonthlyCapacity}`)
+    .setFontSize(8)
+    .setFontStyle("italic")
+    .setFontColor("#888888");
+
+  let row = 5;
 
   // Get input values using dynamic field mapping
   const purchasePrice = getField("purchasePrice", 0);
@@ -655,9 +1238,23 @@ function generateRentalAnalysis(comps) {
   titleRange.setBackground("#1a73e8");
   titleRange.setFontColor("white");
 
-  sheet.getRange("A2").setValue("Generated: " + new Date().toLocaleString())
+  // Get current analysis mode and display it
+  const currentMode = getAnalysisMode();
+  const modeConfig = getAnalysisModeConfig(currentMode);
+
+  let modeEmoji = '⭐';
+  if (currentMode === 'BASIC') modeEmoji = '⚡';
+  else if (currentMode === 'DEEP') modeEmoji = '🚀';
+
+  sheet.getRange("A2").setValue(`${modeEmoji} ${modeConfig.name} • Generated: ${new Date().toLocaleString()}`)
     .setFontSize(9)
     .setFontColor("#666666");
+
+  // Add API usage indicator
+  sheet.getRange("A3").setValue(`API Calls: Up to ${modeConfig.maxApiCalls} • ${modeConfig.estimatedMonthlyCapacity}`)
+    .setFontSize(8)
+    .setFontStyle("italic")
+    .setFontColor("#888888");
 
   // Get input values using dynamic field mapping
   const purchasePrice = getField("purchasePrice", 0);
@@ -687,7 +1284,7 @@ function generateRentalAnalysis(comps) {
   const monthlyPI = (loanAmount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -loanTerm * 12));
   const helocMonthlyInterest = (helocAmount * helocInterest) / 12;
   const totalCashDeployed = downPayment + cashInvestment + rehabCost;
-  let row = 4;
+  let row = 5;
 
   // === Section 1: As-Is Rental ===
   sheet.getRange(row, 1, 1, 2).merge()

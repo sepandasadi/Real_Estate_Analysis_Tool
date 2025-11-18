@@ -22,6 +22,27 @@ export interface PropertyFormData {
   monthsToFlip?: number;
   cashInvestment?: number;
   helocInterest?: number;
+
+  // Phase 2.5: Analysis Mode
+  analysisMode?: 'BASIC' | 'STANDARD' | 'DEEP';
+
+  // Basic Mode: User-provided property details
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  yearBuilt?: number;
+  arv?: number; // User-provided ARV for Basic Mode
+  userProvidedComps?: UserProvidedComp[]; // User-provided comps for Basic Mode
+}
+
+export interface UserProvidedComp {
+  address: string;
+  price: number;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  yearBuilt?: number;
+  saleDate?: string;
 }
 
 export interface PropertyAnalysisResult {
@@ -37,6 +58,11 @@ export interface PropertyAnalysisResult {
   score?: DealScore;
   alerts?: Alert[];
   insights?: Insight[];
+
+  // Phase 2.5: Analysis mode and API usage tracking
+  analysisMode?: 'BASIC' | 'STANDARD' | 'DEEP';
+  apiCallCount?: number;
+  dataSource?: 'user-provided' | 'api-fetched';
 }
 
 export interface ComparableProperty {
