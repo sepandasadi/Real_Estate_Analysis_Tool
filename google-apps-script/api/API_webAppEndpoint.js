@@ -122,6 +122,70 @@ function handleAnalyze(data) {
       result = analyzePropertyStandardMode(data);
   }
 
+  // Calculate flip and rental analysis if we have the required data
+  if (result.success && result.arv) {
+    Logger.log('💰 Calculating flip and rental analysis...');
+
+    // Prepare data for calculations
+    data.arv = result.arv;
+    data.closingCosts = data.purchasePrice * 0.025;
+    data.holdingMonths = data.monthsToFlip || 6;
+
+    // Calculate rental estimates
+    Logger.log('🏠 Calculating rental estimates...');
+    const rentalEstimates = calculateRentalEstimates(data, result.propertyDetails, result.comps);
+    data.monthlyRent = rentalEstimates.monthlyRent;
+    data.propertyTax = rentalEstimates.propertyTax;
+    data.insurance = rentalEstimates.insurance;
+    data.hoaFees = rentalEstimates.hoaFees;
+    data.maintenance = rentalEstimates.maintenance;
+    data.vacancy = rentalEstimates.vacancy;
+
+    // Calculate flip analysis
+    Logger.log('🔨 Calculating flip analysis...');
+    const flipAnalysis = calculateFlipAnalysis(data);
+    flipAnalysis.arvMethod = result.arvCalculationMethod;
+    flipAnalysis.arvSources = result.arvSources;
+    if (result.historicalValidation) {
+      flipAnalysis.historicalValidation = result.historicalValidation;
+    }
+
+    // Calculate rental analysis
+    Logger.log('🏘️ Calculating rental analysis...');
+    const rentalAnalysis = calculateRentalAnalysis(data);
+
+    // Calculate score, alerts, insights
+    Logger.log('⭐ Generating score, alerts, and insights...');
+    const score = calculateDealScore(flipAnalysis, rentalAnalysis);
+    const alerts = generateAlerts(flipAnalysis, rentalAnalysis);
+    const insights = generateInsights(flipAnalysis, rentalAnalysis, data);
+
+    // Structure the response properly
+    result.property = {
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      zip: data.zip,
+      beds: result.propertyDetails?.beds,
+      baths: result.propertyDetails?.baths,
+      sqft: result.propertyDetails?.sqft
+    };
+    result.flip = flipAnalysis;
+    result.rental = rentalAnalysis;
+    result.score = score;
+    result.alerts = alerts;
+    result.insights = insights;
+
+    // Ensure comps is always an array
+    if (!result.comps) {
+      result.comps = [];
+    }
+
+    Logger.log('✅ Flip and rental analysis complete!');
+  } else {
+    Logger.log('⚠️ Skipping flip/rental analysis - insufficient data');
+  }
+
   // Add mode indicator and API usage summary to response
   result.analysisMode = analysisMode;
   result.apiUsageSummary = getApiUsageSummaryForMode(analysisMode);

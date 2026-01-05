@@ -110,6 +110,7 @@ function App() {
       if (response.success && response.data) {
         // Ensure property field exists in the response
         const resultsData = response.data as PropertyAnalysisResult;
+
         if (!resultsData.property) {
           resultsData.property = {
             address: data.address,

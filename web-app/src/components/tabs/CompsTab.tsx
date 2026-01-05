@@ -103,6 +103,11 @@ const CompsTab: React.FC<CompsTabProps> = ({ comps }) => {
             <tbody className="divide-y divide-gray-200">
               {comps.map((comp, index) => {
                 const pricePerSqft = comp.sqft ? comp.price / comp.sqft : null;
+                // Clean address - remove trailing commas
+                const cleanAddress = comp.address.replace(/,\s*$/, '');
+                // Build location string with proper comma handling
+                const locationParts = [comp.city, comp.state, comp.zip].filter(Boolean);
+                const locationString = locationParts.join(', ');
 
                 // Determine row background color based on condition
                 let rowBgColor = '';
@@ -143,17 +148,19 @@ const CompsTab: React.FC<CompsTabProps> = ({ comps }) => {
                             rel="noopener noreferrer"
                             className="text-primary-600 hover:text-primary-800 hover:underline font-medium"
                           >
-                            {comp.address}
+                            {cleanAddress}
                           </a>
                         ) : (
-                          <span className="text-gray-900 font-medium">{comp.address}</span>
+                          <span className="text-gray-900 font-medium">{cleanAddress}</span>
                         )}
                         {getDataQualityBadge()}
                         {getConditionBadge()}
                       </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {comp.city}, {comp.state} {comp.zip}
-                      </div>
+                      {locationString && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {locationString}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">
                       {formatCurrency(comp.price)}
@@ -193,6 +200,11 @@ const CompsTab: React.FC<CompsTabProps> = ({ comps }) => {
         <div className="space-y-4">
           {comps.map((comp, index) => {
             const pricePerSqft = comp.sqft ? comp.price / comp.sqft : null;
+            // Clean address - remove trailing commas
+            const cleanAddress = comp.address.replace(/,\s*$/, '');
+            // Build location string with proper comma handling
+            const locationParts = [comp.city, comp.state, comp.zip].filter(Boolean);
+            const locationString = locationParts.join(', ');
             return (
               <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                 <div className="mb-3">
@@ -203,14 +215,16 @@ const CompsTab: React.FC<CompsTabProps> = ({ comps }) => {
                       rel="noopener noreferrer"
                       className="text-primary-600 hover:text-primary-800 hover:underline font-semibold text-lg"
                     >
-                      {comp.address}
+                      {cleanAddress}
                     </a>
                   ) : (
-                    <h5 className="text-gray-900 font-semibold text-lg">{comp.address}</h5>
+                    <h5 className="text-gray-900 font-semibold text-lg">{cleanAddress}</h5>
                   )}
-                  <p className="text-sm text-gray-500">
-                    {comp.city}, {comp.state} {comp.zip}
-                  </p>
+                  {locationString && (
+                    <p className="text-sm text-gray-500">
+                      {locationString}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-blue-50 p-3 rounded">
