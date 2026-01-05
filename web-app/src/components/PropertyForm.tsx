@@ -329,6 +329,31 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
         </div>
       </div>
 
+      {/* Deep Mode Active Indicator */}
+      {formData.analysisMode === 'DEEP' && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-400 rounded-lg p-4 animate-fadeIn">
+          <div className="flex items-start gap-3">
+            <div className="bg-green-500 p-2 rounded-lg">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h4 className="text-sm font-bold text-green-800 mb-1">🚀 Deep Mode Active</h4>
+              <p className="text-xs text-green-700 mb-2">
+                Most fields will be auto-populated from APIs. Only provide the basic property information below.
+              </p>
+              <ul className="text-xs text-green-600 space-y-1">
+                <li>• Property details will be validated automatically</li>
+                <li>• Comps will be fetched and filtered automatically</li>
+                <li>• ARV will be calculated from multiple sources</li>
+                <li>• Historical data will be analyzed for trends</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Property Details */}
       <div className="space-y-5 bg-white p-6 rounded-lg border border-gray-200">
         <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -337,6 +362,11 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Property Details
+          {formData.analysisMode === 'DEEP' && (
+            <span className="ml-auto text-xs font-normal text-green-600 bg-green-100 px-3 py-1 rounded-full">
+              Auto-validated by API
+            </span>
+          )}
         </h3>
 
         <div>
@@ -489,6 +519,92 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   step="1"
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Deep Mode: Optional Property Details */}
+        {formData.analysisMode === 'DEEP' && (
+          <div className="mt-6 p-4 bg-green-50 rounded-lg border-2 border-green-300 animate-fadeIn">
+            <p className="text-sm font-semibold text-green-800 mb-3 flex items-center gap-2">
+              <span className="text-xl">🚀</span>
+              Deep Mode: Optional Details (Auto-fetched if not provided)
+            </p>
+            <p className="text-xs text-green-700 mb-3">
+              These fields are optional in Deep Mode. If you leave them blank, they'll be automatically fetched and validated from our APIs.
+            </p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <label htmlFor="beds-deep" className="block text-sm font-medium text-gray-700 mb-1">
+                  Beds <span className="text-xs text-green-600">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  id="beds-deep"
+                  name="beds"
+                  value={formData.beds || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-green-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Auto-fetch"
+                  min="0"
+                  step="1"
+                />
+              </div>
+              <div>
+                <label htmlFor="baths-deep" className="block text-sm font-medium text-gray-700 mb-1">
+                  Baths <span className="text-xs text-green-600">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  id="baths-deep"
+                  name="baths"
+                  value={formData.baths || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-green-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Auto-fetch"
+                  min="0"
+                  step="0.5"
+                />
+              </div>
+              <div>
+                <label htmlFor="sqft-deep" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sqft <span className="text-xs text-green-600">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  id="sqft-deep"
+                  name="sqft"
+                  value={formData.sqft || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-green-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Auto-fetch"
+                  min="0"
+                  step="100"
+                />
+              </div>
+              <div>
+                <label htmlFor="yearBuilt-deep" className="block text-sm font-medium text-gray-700 mb-1">
+                  Year Built <span className="text-xs text-green-600">(Optional)</span>
+                </label>
+                <input
+                  type="number"
+                  id="yearBuilt-deep"
+                  name="yearBuilt"
+                  value={formData.yearBuilt || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 border border-green-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  placeholder="Auto-fetch"
+                  min="1800"
+                  max={new Date().getFullYear()}
+                  step="1"
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex items-start gap-2 text-xs text-green-700">
+              <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>Leaving these blank will trigger automatic data fetching, using 8-12 API calls for maximum accuracy.</span>
             </div>
           </div>
         )}
