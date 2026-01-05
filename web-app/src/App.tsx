@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
-import { ApiUsageData } from './services/api';
+import { ApiUsageData, analyzeProperty, getApiUsage } from './services/api';
 import { mockAnalyzeProperty, getMockApiUsage } from './services/mockApi';
 import { PropertyFormData, PropertyAnalysisResult } from './types/property';
 import { TabMode } from './types/tabs';
@@ -56,11 +56,17 @@ function App() {
   const [propertyHistory, setPropertyHistory] = useState<PropertyHistoryEntry[]>([]);
   const [selectedHistoryData, setSelectedHistoryData] = useState<PropertyFormData | null>(null);
 
+  // Check if real API is configured
+  const API_URL = import.meta.env.VITE_API_URL;
+  const isRealApiConfigured = API_URL && API_URL !== '' && !API_URL.includes('YOUR_SCRIPT_ID');
+
   useEffect(() => {
     // Fetch API usage and load property history on mount
     const fetchUsage = async () => {
       try {
-        const usageResponse = await getMockApiUsage();
+        const usageResponse = isRealApiConfigured
+          ? await getApiUsage()
+          : await getMockApiUsage();
         if (usageResponse.success && usageResponse.data) {
           setApiUsage(usageResponse.data);
         }
@@ -91,11 +97,24 @@ function App() {
       const newPropertyId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       setPropertyId(newPropertyId);
 
-      // Using mock API for now (no CORS issues)
-      const response = await mockAnalyzeProperty(data);
+      // Use real API if configured, otherwise use mock API
+      const response = isRealApiConfigured
+        ? await analyzeProperty(data)
+        : await mockAnalyzeProperty(data);
 
       if (response.success && response.data) {
-        setAnalysisResults(response.data as PropertyAnalysisResult);
+        // Ensure property field exists in the response
+        const resultsData = response.data as PropertyAnalysisResult;
+        if (!resultsData.property) {
+          resultsData.property = {
+            address: data.address,
+            city: data.city,
+            state: data.state,
+            zip: data.zip
+          };
+        }
+
+        setAnalysisResults(resultsData);
         setFormData(data);
         setViewMode('results');
         setActiveTab('inputs'); // Start with inputs summary tab
@@ -109,7 +128,9 @@ function App() {
         setSelectedHistoryData(null);
 
         // Refresh API usage after analysis
-        const usageResponse = await getMockApiUsage();
+        const usageResponse = isRealApiConfigured
+          ? await getApiUsage()
+          : await getMockApiUsage();
         if (usageResponse.success && usageResponse.data) {
           setApiUsage(usageResponse.data);
         }
@@ -260,7 +281,8 @@ function App() {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `rei-analysis-${analysisResults.property.address.replace(/\s+/g, '-')}-${Date.now()}.json`;
+    const address = analysisResults.property?.address || formData?.address || 'property';
+    link.download = `rei-analysis-${address.replace(/\s+/g, '-')}-${Date.now()}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -396,7 +418,7 @@ function App() {
                     <div>
                       <h2 className="text-2xl font-bold text-gray-800">Analysis Results</h2>
                       <p className="text-gray-600 mt-1">
-                        {analysisResults.property.address}, {analysisResults.property.city}, {analysisResults.property.state} {analysisResults.property.zip}
+                        {analysisResults.property?.address || formData?.address}, {analysisResults.property?.city || formData?.city}, {analysisResults.property?.state || formData?.state} {analysisResults.property?.zip || formData?.zip}
                       </p>
                     </div>
                     <button

@@ -182,44 +182,44 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
     PlatformLogger.info(`🔄 Force refresh requested, bypassing cache [${mode} mode]`);
   }
 
-  // Priority 1: Try US Real Estate Similar Homes (if quota available) - 300 requests/month
-  // Phase 1.4: AI-matched similar homes (better quality than generic search)
-  if (checkQuotaAvailable('us_real_estate', 'month')) {
-    try {
-      PlatformLogger.info("🔑 Trying US Real Estate Similar Homes API (Priority 1 - 300/month)...");
-      comps = retryWithBackoff(() => fetchUSRealEstateSimilarHomes(data));
-      if (comps && comps.length > 0) {
-        PlatformLogger.success(`US Real Estate Similar Homes SUCCESS: ${comps.length} comps`);
-        trackAPIUsage('us_real_estate', true);
-        setCachedComps(data.address, data.city, data.state, data.zip, comps);
-        return comps;
-      }
-    } catch (err) {
-      PlatformLogger.warn(`US Real Estate Similar Homes failed: ${err.message}`);
-      trackAPIUsage('us_real_estate', false);
-    }
-  } else {
-    PlatformLogger.warn("US Real Estate quota exceeded, skipping to next API");
-  }
-
-  // Priority 2: Try Zillow Property Comps (if quota available) - 100 requests/month
-  // Phase 1.4: AI-matched property comps (better quality than generic search)
+  // Priority 1: Try Zillow Recently Sold by Zip Code (if quota available) - 100 requests/month
+  // UPDATED: Search by zip code to get real sold properties in the area
   if (checkQuotaAvailable('zillow', 'month')) {
     try {
-      PlatformLogger.info("🏠 Trying Zillow Property Comps API (Priority 2 - 100/month)...");
-      comps = retryWithBackoff(() => fetchZillowPropertyComps(data));
+      PlatformLogger.info("🏠 Trying Zillow Recently Sold by Zip Code (Priority 1 - 100/month)...");
+      comps = retryWithBackoff(() => fetchRecentlySoldByZip(data, 'zillow'));
       if (comps && comps.length > 0) {
-        PlatformLogger.success(`Zillow Property Comps SUCCESS: ${comps.length} comps`);
+        PlatformLogger.success(`Zillow Recently Sold SUCCESS: ${comps.length} real comps`);
         trackAPIUsage('zillow', true);
         setCachedComps(data.address, data.city, data.state, data.zip, comps);
         return comps;
       }
     } catch (err) {
-      PlatformLogger.warn(`Zillow Property Comps failed: ${err.message}`);
+      PlatformLogger.warn(`Zillow Recently Sold failed: ${err.message}`);
       trackAPIUsage('zillow', false);
     }
   } else {
     PlatformLogger.warn("Zillow quota exceeded, skipping to next API");
+  }
+
+  // Priority 2: Try US Real Estate Sold Homes by Zip (if quota available) - 300 requests/month
+  // UPDATED: Search by zip code to get real sold properties in the area
+  if (checkQuotaAvailable('us_real_estate', 'month')) {
+    try {
+      PlatformLogger.info("🔑 Trying US Real Estate Sold Homes by Zip (Priority 2 - 300/month)...");
+      comps = retryWithBackoff(() => fetchRecentlySoldByZip(data, 'us_real_estate'));
+      if (comps && comps.length > 0) {
+        PlatformLogger.success(`US Real Estate Sold Homes SUCCESS: ${comps.length} real comps`);
+        trackAPIUsage('us_real_estate', true);
+        setCachedComps(data.address, data.city, data.state, data.zip, comps);
+        return comps;
+      }
+    } catch (err) {
+      PlatformLogger.warn(`US Real Estate Sold Homes failed: ${err.message}`);
+      trackAPIUsage('us_real_estate', false);
+    }
+  } else {
+    PlatformLogger.warn("US Real Estate quota exceeded, skipping to next API");
   }
 
   // Priority 3: Try Gemini AI (if quota available)
@@ -634,10 +634,139 @@ function getUSRealEstatePropertyId(data) {
 }
 
 /**
+ * Fetch recently sold properties by zip code
+ * UPDATED: Phase 3.0 - Search by zip code only to get real sold properties
+ *
+ * @param {Object} data - Property data including zip code
+ * @param {string} source - API source ('zillow' or 'us_real_estate')
+ * @returns {Array} Array of recently sold properties in the zip code
+ */
+function fetchRecentlySoldByZip(data, source = 'zillow') {
+  const { RAPIDAPI_KEY } = getApiKeys();
+
+  if (!RAPIDAPI_KEY) {
+    throw new Error("RAPIDAPI_KEY not found in Script Properties");
+  }
+
+  if (!data.zip) {
+    throw new Error("Zip code is required to fetch comps");
+  }
+
+  let url, host;
+
+  if (source === 'zillow') {
+    // Zillow API - search by zip code for recently sold homes
+    PlatformLogger.info(`🏠 Fetching Zillow recently sold homes in zip: ${data.zip}`);
+    url = `${ZILLOW_BASE_URL}/propertyExtendedSearch?location=${encodeURIComponent(data.zip)}&status_type=RecentlySold&home_type=Houses&sort=Newest`;
+    host = 'zillow-com1.p.rapidapi.com';
+  } else {
+    // US Real Estate API - search by zip code for sold homes
+    PlatformLogger.info(`🔑 Fetching US Real Estate sold homes in zip: ${data.zip}`);
+    url = `${US_REAL_ESTATE_BASE_URL}/sold-homes?postal_code=${encodeURIComponent(data.zip)}&limit=10&offset=0`;
+    host = 'us-real-estate.p.rapidapi.com';
+  }
+
+  const options = {
+    headers: {
+      'X-RapidAPI-Key': RAPIDAPI_KEY,
+      'X-RapidAPI-Host': host
+    }
+  };
+
+  try {
+    const response = HttpClient.get(url, options);
+
+    if (!response.success || response.statusCode !== 200) {
+      PlatformLogger.warn(`${source} API returned status ${response.statusCode}`);
+      return [];
+    }
+
+    const json = JSON.parse(response.body);
+    let comps = [];
+
+    if (source === 'zillow') {
+      // Parse Zillow response
+      const props = json.props || [];
+      comps = props.slice(0, 10).map(prop => {
+        let formattedDate = "—";
+        if (prop.dateSold) {
+          try {
+            const date = new Date(prop.dateSold * 1000);
+            formattedDate = (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
+          } catch (e) {
+            PlatformLogger.warn(`Date conversion error: ${e}`);
+          }
+        }
+
+        const propertyLink = prop.detailUrl || prop.hdpUrl || `https://www.zillow.com/homedetails/${prop.zpid}_zpid/`;
+
+        return {
+          address: prop.address || prop.streetAddress || "Unknown",
+          city: prop.addressCity || data.city || "",
+          state: prop.addressState || data.state || "",
+          zip: prop.addressZipcode || data.zip || "",
+          price: prop.price || 0,
+          sqft: prop.livingArea || prop.sqft || 0,
+          beds: prop.bedrooms || prop.beds || 0,
+          baths: prop.bathrooms || prop.baths || 0,
+          yearBuilt: prop.yearBuilt || null,
+          saleDate: formattedDate,
+          distance: 0,
+          condition: "unknown",
+          propertyUrl: propertyLink,
+          latitude: prop.latitude || prop.lat || null,
+          longitude: prop.longitude || prop.lng || null,
+          dataSource: 'zillow',
+          isReal: true,
+          qualityScore: 90
+        };
+      });
+    } else {
+      // Parse US Real Estate response
+      const homes = json.data?.home_search?.results || json.results || [];
+      comps = homes.slice(0, 10).map(home => {
+        const location = home.location || {};
+        const address = location.address || {};
+        const description = home.description || {};
+
+        return {
+          address: address.line || "Unknown",
+          city: address.city || data.city || "",
+          state: address.state_code || data.state || "",
+          zip: address.postal_code || data.zip || "",
+          price: home.list_price || home.price || home.sold_price || 0,
+          sqft: description.sqft || 0,
+          beds: description.beds || 0,
+          baths: description.baths || 0,
+          yearBuilt: description.year_built || null,
+          saleDate: home.list_date || home.sold_date || new Date().toISOString().slice(0, 10),
+          distance: 0,
+          condition: "unknown",
+          propertyUrl: home.href || null,
+          latitude: location.coordinate?.lat || null,
+          longitude: location.coordinate?.lon || null,
+          property_id: home.property_id || null,
+          dataSource: 'us_real_estate',
+          isReal: true,
+          qualityScore: 90
+        };
+      });
+    }
+
+    PlatformLogger.success(`${source} returned ${comps.length} real sold properties in zip ${data.zip}`);
+    return comps;
+  } catch (e) {
+    PlatformLogger.warn(`Failed to fetch from ${source}: ${e.message}`);
+    return [];
+  }
+}
+
+/**
  * Fetch AI-matched property comps from Zillow API
  * Phase 1.4: Uses /propertyComps endpoint for better quality matches
  * ADDED: Phase 1.4 - AI-matched property comps (replaces generic search)
  * MIGRATED: Phase 0.6 - Now uses HttpClient adapter
+ * NOTE: This is now a fallback - we prefer zip-based search for real addresses
  *
  * @param {Object} data - Property data including address, city, state, zip, zpid (optional)
  * @returns {Array} Array of AI-matched comparable properties
