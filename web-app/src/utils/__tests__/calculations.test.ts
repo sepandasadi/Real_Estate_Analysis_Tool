@@ -10,10 +10,13 @@ describe('Project Tracker Calculations', () => {
     it('should calculate project summary correctly', () => {
       const mockData: ProjectTrackerData = {
         propertyId: 'test-123',
+        lastUpdated: '2026-01-05',
         renovationPhases: [
           {
             id: '1',
-            name: 'Foundation',
+            phaseName: 'Foundation',
+            description: 'Foundation work',
+            contractor: 'ABC Contractors',
             status: 'completed',
             estimatedCost: 10000,
             actualCost: 9500,
@@ -25,8 +28,10 @@ describe('Project Tracker Calculations', () => {
           },
           {
             id: '2',
-            name: 'Framing',
-            status: 'in_progress',
+            phaseName: 'Framing',
+            description: 'Framing work',
+            contractor: 'XYZ Framing',
+            status: 'in-progress',
             estimatedCost: 15000,
             actualCost: 14000,
             estimatedDuration: 15,
@@ -57,6 +62,7 @@ describe('Project Tracker Calculations', () => {
     it('should handle empty data', () => {
       const emptyData: ProjectTrackerData = {
         propertyId: 'test-empty',
+        lastUpdated: '2026-01-05',
         renovationPhases: [],
         criticalMilestones: [],
         delays: [],

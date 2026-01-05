@@ -177,6 +177,8 @@ function App() {
   };
 
   const renderTabContentInner = () => {
+    if (!analysisResults || !formData) return null;
+
     switch (activeTab) {
       case 'inputs':
         return <InputsSummaryTab formData={formData} results={analysisResults} onEdit={handleNewAnalysis} />;

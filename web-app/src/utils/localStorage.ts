@@ -20,7 +20,6 @@ import {
   removePropertyFromHistoryDB,
   clearPropertyHistoryDB,
   getAllStoredPropertyIds as getAllStoredPropertyIdsDB,
-  clearAllPropertyData as clearAllPropertyDataDB,
   clearAllStoredData as clearAllStoredDataDB,
 } from './db';
 
