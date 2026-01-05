@@ -53,13 +53,14 @@ export interface ApiUsageData {
 
 /**
  * Make API request to Google Apps Script backend
+ * Uses text/plain to avoid CORS preflight issues
  */
 async function makeRequest<T>(action: string, data: any = {}): Promise<ApiResponse<T>> {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain', // Use text/plain to avoid CORS preflight
       },
       body: JSON.stringify({
         action,
