@@ -97,6 +97,11 @@ function App() {
       const newPropertyId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       setPropertyId(newPropertyId);
 
+      // Automatically switch to Advanced mode when using Deep analysis mode
+      if (data.analysisMode === 'DEEP') {
+        setMode(TabMode.ADVANCED);
+      }
+
       // Use real API if configured, otherwise use mock API
       const response = isRealApiConfigured
         ? await analyzeProperty(data)
