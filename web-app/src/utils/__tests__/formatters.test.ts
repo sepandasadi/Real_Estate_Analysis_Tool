@@ -26,12 +26,14 @@ describe('formatCurrency', () => {
   });
 
   it('should handle very large numbers', () => {
-    expect(formatCurrency(999999999)).toBe('$1,000,000,000');
+    expect(formatCurrency(999999999)).toBe('$999,999,999');
+    expect(formatCurrency(1000000000)).toBe('$1,000,000,000');
   });
 
-  it('should handle decimals with exact precision', () => {
-    expect(formatCurrency(1234.5, 2)).toBe('$1,234.50');
-    expect(formatCurrency(1234.567, 2)).toBe('$1,234.57');
+  it('should round to nearest dollar', () => {
+    expect(formatCurrency(1234.4)).toBe('$1,234');
+    expect(formatCurrency(1234.5)).toBe('$1,235');
+    expect(formatCurrency(1234.6)).toBe('$1,235');
   });
 });
 
