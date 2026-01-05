@@ -488,3 +488,120 @@ function fetchMortgageCalculation(loanAmount, interestRate, loanTerm) {
     }
   };
 }
+
+/**
+ * Phase 3.1: Fetch school quality data for a location
+ * @param {string} city - City name
+ * @param {string} state - State code
+ * @param {string} zip - Zip code
+ * @returns {Object} { error: boolean, schools?: Array, avgRating?: number, message?: string }
+ */
+function fetchSchools(city, state, zip) {
+  // Validate input
+  if (!city || !state || !zip) {
+    return { error: true, message: 'City, state, and zip are required for schools data' };
+  }
+
+  return {
+    endpoint: 'SCHOOLS',
+    params: {
+      city: city,
+      state_code: state,
+      zip_code: zip
+    },
+    parser: function(response) {
+      const parsed = parseUSRealEstateResponse(response, 'Schools');
+      if (parsed.error) return parsed;
+
+      // Extract school data
+      const schools = parsed.data.schools || parsed.data.data || [];
+
+      if (schools.length === 0) {
+        return {
+          error: false,
+          schools: [],
+          avgRating: 0,
+          message: 'No schools found for this location',
+          source: 'us_real_estate_schools'
+        };
+      }
+
+      // Calculate average rating
+      const ratingsWithValues = schools.filter(s => s.rating && s.rating > 0);
+      const avgRating = ratingsWithValues.length > 0
+        ? ratingsWithValues.reduce((sum, s) => sum + s.rating, 0) / ratingsWithValues.length
+        : 0;
+
+      // Format schools data
+      const formattedSchools = schools.map(school => ({
+        name: school.name || 'Unknown School',
+        type: school.type || school.level || 'Unknown', // elementary, middle, high
+        rating: school.rating || 0, // 0-10 scale
+        distance: school.distance || 0, // miles
+        address: school.address || '',
+        grades: school.grades || school.gradeRange || '',
+        enrollment: school.enrollment || null
+      }));
+
+      return {
+        error: false,
+        schools: formattedSchools,
+        avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+        elementaryCount: formattedSchools.filter(s => s.type.toLowerCase().includes('elementary')).length,
+        middleCount: formattedSchools.filter(s => s.type.toLowerCase().includes('middle')).length,
+        highCount: formattedSchools.filter(s => s.type.toLowerCase().includes('high')).length,
+        source: 'us_real_estate_schools'
+      };
+    }
+  };
+}
+
+/**
+ * Phase 3.3: Fetch noise score assessment for a location
+ * @param {string} city - City name
+ * @param {string} state - State code
+ * @param {string} zip - Zip code
+ * @returns {Object} { error: boolean, noiseScore?: number, noiseLevel?: string, message?: string }
+ */
+function fetchNoiseScore(city, state, zip) {
+  // Validate input
+  if (!city || !state || !zip) {
+    return { error: true, message: 'City, state, and zip are required for noise score' };
+  }
+
+  return {
+    endpoint: 'NOISE_SCORE',
+    params: {
+      city: city,
+      state_code: state,
+      zip_code: zip
+    },
+    parser: function(response) {
+      const parsed = parseUSRealEstateResponse(response, 'Noise Score');
+      if (parsed.error) return parsed;
+
+      // Extract noise score (typically 0-100, lower is quieter)
+      const noiseScore = parsed.data.noiseScore || parsed.data.score || 50;
+
+      // Classify noise level
+      let noiseLevel = 'moderate';
+      if (noiseScore < 40) noiseLevel = 'very_quiet';
+      else if (noiseScore < 50) noiseLevel = 'quiet';
+      else if (noiseScore < 60) noiseLevel = 'moderate';
+      else if (noiseScore < 70) noiseLevel = 'noisy';
+      else noiseLevel = 'very_noisy';
+
+      // Get contributing factors if available
+      const factors = parsed.data.factors || parsed.data.sources || [];
+
+      return {
+        error: false,
+        noiseScore: noiseScore,
+        noiseLevel: noiseLevel,
+        factors: factors, // e.g., ['traffic', 'airport', 'railway']
+        description: parsed.data.description || `Noise level: ${noiseLevel}`,
+        source: 'us_real_estate_noise_score'
+      };
+    }
+  };
+}

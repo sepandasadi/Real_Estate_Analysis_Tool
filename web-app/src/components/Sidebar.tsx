@@ -28,7 +28,7 @@ const TAB_CATEGORIES: TabCategory[] = [
   {
     name: 'Market Data',
     icon: '🏘️',
-    tabs: ['comps', 'filtered-comps', 'state-comparison']
+    tabs: ['comps', 'filtered-comps', 'location-quality', 'state-comparison']
   },
   {
     name: 'Advanced Tools',

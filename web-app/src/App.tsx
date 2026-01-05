@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { ApiUsageData } from './services/api';
 import { mockAnalyzeProperty, getMockApiUsage } from './services/mockApi';
 import { PropertyFormData, PropertyAnalysisResult } from './types/property';
@@ -15,20 +15,31 @@ import PropertyForm from './components/PropertyForm';
 import PropertyHistory from './components/PropertyHistory';
 import Sidebar from './components/Sidebar';
 import MenuBar from './components/MenuBar';
-import InputsSummaryTab from './components/tabs/InputsSummaryTab';
-import FlipAnalysisTab from './components/tabs/FlipAnalysisTab';
-import RentalAnalysisTab from './components/tabs/RentalAnalysisTab';
-import TaxBenefitsTab from './components/tabs/TaxBenefitsTab';
-import AmortizationTab from './components/tabs/AmortizationTab';
-import CompsTab from './components/tabs/CompsTab';
-import SensitivityMatrixTab from './components/tabs/SensitivityMatrixTab';
-import ChartsTab from './components/tabs/ChartsTab';
-import AdvancedMetricsTab from './components/tabs/AdvancedMetricsTab';
-import LoanComparisonTab from './components/tabs/LoanComparisonTab';
-import ProjectTrackerTab from './components/tabs/ProjectTrackerTab';
-import PartnershipManagementTab from './components/tabs/PartnershipManagementTab';
-import FilteredCompsTab from './components/tabs/FilteredCompsTab';
-import StateComparisonTab from './components/tabs/StateComparisonTab';
+import InstallPrompt from './components/InstallPrompt';
+
+// Lazy load tab components for better performance
+const InputsSummaryTab = lazy(() => import('./components/tabs/InputsSummaryTab'));
+const FlipAnalysisTab = lazy(() => import('./components/tabs/FlipAnalysisTab'));
+const RentalAnalysisTab = lazy(() => import('./components/tabs/RentalAnalysisTab'));
+const TaxBenefitsTab = lazy(() => import('./components/tabs/TaxBenefitsTab'));
+const AmortizationTab = lazy(() => import('./components/tabs/AmortizationTab'));
+const CompsTab = lazy(() => import('./components/tabs/CompsTab'));
+const SensitivityMatrixTab = lazy(() => import('./components/tabs/SensitivityMatrixTab'));
+const ChartsTab = lazy(() => import('./components/tabs/ChartsTab'));
+const AdvancedMetricsTab = lazy(() => import('./components/tabs/AdvancedMetricsTab'));
+const LoanComparisonTab = lazy(() => import('./components/tabs/LoanComparisonTab'));
+const ProjectTrackerTab = lazy(() => import('./components/tabs/ProjectTrackerTab'));
+const PartnershipManagementTab = lazy(() => import('./components/tabs/PartnershipManagementTab'));
+const FilteredCompsTab = lazy(() => import('./components/tabs/FilteredCompsTab'));
+const LocationQualityTab = lazy(() => import('./components/tabs/LocationQualityTab'));
+const StateComparisonTab = lazy(() => import('./components/tabs/StateComparisonTab'));
+
+// Loading fallback component
+const TabLoadingFallback = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
 
 type ViewMode = 'form' | 'results';
 
@@ -158,6 +169,14 @@ function App() {
   const renderTabContent = () => {
     if (!analysisResults || !formData) return null;
 
+    return (
+      <Suspense fallback={<TabLoadingFallback />}>
+        {renderTabContentInner()}
+      </Suspense>
+    );
+  };
+
+  const renderTabContentInner = () => {
     switch (activeTab) {
       case 'inputs':
         return <InputsSummaryTab formData={formData} results={analysisResults} onEdit={handleNewAnalysis} />;
@@ -209,6 +228,8 @@ function App() {
         return <PartnershipManagementTab data={analysisResults} propertyId={propertyId} />;
       case 'filtered-comps':
         return <FilteredCompsTab comps={analysisResults.comps || []} />;
+      case 'location-quality':
+        return <LocationQualityTab locationData={analysisResults.locationQuality} />;
       case 'state-comparison':
         return <StateComparisonTab purchasePrice={formData.purchasePrice} />;
       default:
@@ -398,7 +419,7 @@ function App() {
           <div className="max-w-4xl mx-auto">
             <div className="border-t border-gray-200 pt-8">
               <p className="text-gray-600 text-sm font-medium">
-                © 2025 Real Estate Analysis Tool
+                © 2026 Real Estate Analysis Tool
               </p>
               <p className="text-gray-500 text-xs mt-2">
                 Built with React, TypeScript, Tailwind CSS & Google Apps Script
@@ -423,6 +444,8 @@ function App() {
           </div>
         </div>
       </div>
+      {/* Install Prompt for PWA */}
+      <InstallPrompt />
     </div>
   );
 }
