@@ -5,11 +5,8 @@
 import {
   ProjectTrackerData,
   ProjectSummary,
-  RenovationPhase,
-  ContractorPerformance,
 } from '../types/projectTracker';
 import {
-  PartnershipManagementData,
   Partner,
   WaterfallConfig,
   PartnerDistribution,

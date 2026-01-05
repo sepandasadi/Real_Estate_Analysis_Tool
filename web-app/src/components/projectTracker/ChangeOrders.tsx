@@ -112,7 +112,7 @@ const ChangeOrders: React.FC<ChangeOrdersProps> = ({
 
   const totalCostImpact = changeOrders.reduce((sum, co) => sum + co.costImpact, 0);
   const totalTimeImpact = changeOrders.reduce((sum, co) => sum + co.timeImpact, 0);
-  const approvedCount = changeOrders.filter(co => co.status === 'approved' || co.status === 'completed').length;
+  // const approvedCount = changeOrders.filter(co => co.status === 'approved' || co.status === 'completed').length;
   const pendingCount = changeOrders.filter(co => co.status === 'pending').length;
 
   return (

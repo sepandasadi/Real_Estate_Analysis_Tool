@@ -117,7 +117,7 @@ const ContractorPerformanceTracker: React.FC<ContractorPerformanceProps> = ({
     );
   };
 
-  const totalContract = contractors.reduce((sum, c) => sum + c.contractAmount, 0);
+  // const totalContract = contractors.reduce((sum, c) => sum + c.contractAmount, 0);
   const totalPaid = contractors.reduce((sum, c) => sum + c.amountPaid, 0);
   const recommendedCount = contractors.filter(c => c.wouldRecommend).length;
   const avgRating = contractors.length > 0

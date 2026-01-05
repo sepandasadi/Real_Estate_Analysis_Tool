@@ -63,6 +63,9 @@ export interface PropertyAnalysisResult {
   analysisMode?: 'BASIC' | 'STANDARD' | 'DEEP';
   apiCallCount?: number;
   dataSource?: 'user-provided' | 'api-fetched';
+
+  // Phase 4: Location quality data
+  locationQuality?: any; // Location quality analysis data
 }
 
 export interface ComparableProperty {

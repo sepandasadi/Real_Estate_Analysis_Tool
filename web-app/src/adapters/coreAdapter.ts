@@ -231,7 +231,7 @@ export const CacheManager = {
    * @param expirationInSeconds - Expiration time in seconds (not enforced by localStorage)
    * @returns Success status
    */
-  set(key: string, data: any, expirationInSeconds?: number): boolean {
+  set(key: string, data: any, _expirationInSeconds?: number): boolean {
     try {
       const serialized = JSON.stringify(data);
 

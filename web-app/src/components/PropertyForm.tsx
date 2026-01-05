@@ -35,7 +35,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
   const [errors, setErrors] = useState<Partial<Record<keyof PropertyFormData, string>>>({});
   const [analysisType, setAnalysisType] = useState<'both' | 'flip' | 'rental'>('both');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [previousMode, setPreviousMode] = useState<'BASIC' | 'STANDARD' | 'DEEP'>('STANDARD');
+  const [, setPreviousMode] = useState<'BASIC' | 'STANDARD' | 'DEEP'>('STANDARD');
   const [newComp, setNewComp] = useState<UserProvidedComp>({
     address: '',
     price: 0,
