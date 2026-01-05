@@ -15,6 +15,8 @@ interface ProjectTrackerTabProps {
 }
 
 const ProjectTrackerTab: React.FC<ProjectTrackerTabProps> = ({ propertyId }) => {
+  const [showTimeline, setShowTimeline] = React.useState(false);
+
   const {
     data,
     summary,
@@ -42,19 +44,25 @@ const ProjectTrackerTab: React.FC<ProjectTrackerTabProps> = ({ propertyId }) => 
     deleteChangeOrder,
   } = useProjectTracker(propertyId);
 
+  const handleGetStarted = () => {
+    setShowTimeline(true);
+  };
+
   // Show empty state if no data - clicking "Get Started" will show the first section
   if (!hasData) {
     return (
       <div className="space-y-6">
-        <EmptyState onGetStarted={() => {}} />
+        <EmptyState onGetStarted={handleGetStarted} />
 
-        {/* Show Renovation Timeline section to get started */}
-        <RenovationTimeline
-          phases={data.renovationPhases}
-          onAdd={addRenovationPhase}
-          onUpdate={updateRenovationPhase}
-          onDelete={deleteRenovationPhase}
-        />
+        {/* Show Renovation Timeline section after clicking Get Started */}
+        {showTimeline && (
+          <RenovationTimeline
+            phases={data.renovationPhases}
+            onAdd={addRenovationPhase}
+            onUpdate={updateRenovationPhase}
+            onDelete={deleteRenovationPhase}
+          />
+        )}
       </div>
     );
   }
