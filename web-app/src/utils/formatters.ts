@@ -6,7 +6,7 @@
  * Format number as currency (USD)
  */
 export function formatCurrency(value: number | undefined | null): string {
-  if (value === undefined || value === null || isNaN(value)) {
+  if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
     return '$0';
   }
   return new Intl.NumberFormat('en-US', {
@@ -21,7 +21,7 @@ export function formatCurrency(value: number | undefined | null): string {
  * Format number as percentage
  */
 export function formatPercent(value: number | undefined | null, decimals: number = 2): string {
-  if (value === undefined || value === null || isNaN(value)) {
+  if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
     return '0%';
   }
   return `${value.toFixed(decimals)}%`;
@@ -31,7 +31,7 @@ export function formatPercent(value: number | undefined | null, decimals: number
  * Format number with commas
  */
 export function formatNumber(value: number | undefined | null, decimals: number = 0): string {
-  if (value === undefined || value === null || isNaN(value)) {
+  if (value === undefined || value === null || isNaN(value) || !isFinite(value)) {
     return '0';
   }
   return new Intl.NumberFormat('en-US', {

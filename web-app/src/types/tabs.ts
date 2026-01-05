@@ -108,18 +108,25 @@ export const TABS: Tab[] = [
     order: 13
   },
   {
+    id: 'location-quality',
+    label: 'Location Quality',
+    icon: '📍',
+    mode: TabMode.ADVANCED,
+    order: 14
+  },
+  {
     id: 'state-comparison',
     label: 'State Comparison',
     icon: '🗺️',
     mode: TabMode.ADVANCED,
-    order: 14
+    order: 15
   },
   {
     id: 'scenarios',
     label: 'Custom Scenarios',
     icon: '🎲',
     mode: TabMode.ADVANCED,
-    order: 15
+    order: 16
   }
 ];
 
