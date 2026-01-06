@@ -8,8 +8,8 @@ web-app/build/
 web-app/dist/
 
 # Environment files
-web-app/.env
-web-app/.env.local
+web-app/.env*
+!web-app/.env.example
 
 # IDE
 .vscode/
