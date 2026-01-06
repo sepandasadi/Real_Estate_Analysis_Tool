@@ -6,6 +6,74 @@
 import { PropertyFormData } from '../types/property';
 import { ApiResponse, ApiUsageData } from './api';
 
+// Initial usage data
+const INITIAL_USAGE = {
+  privateZillow: { used: 42, limit: 250, remaining: 208 },
+  usRealEstate: { used: 87, limit: 300, remaining: 213 },
+  redfin: { used: 23, limit: 111, remaining: 88 },
+  gemini: { used: 312, limit: 1500, remaining: 1188 }
+};
+
+/**
+ * Get current usage from localStorage or initialize
+ */
+function getCurrentUsage() {
+  const stored = localStorage.getItem('mock_api_usage');
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return { ...INITIAL_USAGE };
+    }
+  }
+  return { ...INITIAL_USAGE };
+}
+
+/**
+ * Save usage to localStorage
+ */
+function saveUsage(usage: typeof INITIAL_USAGE) {
+  localStorage.setItem('mock_api_usage', JSON.stringify(usage));
+}
+
+/**
+ * Simulate API call usage (decrements remaining count)
+ */
+function simulateApiUsage(apiName: keyof typeof INITIAL_USAGE, callCount: number = 1) {
+  const usage = getCurrentUsage();
+  if (usage[apiName].remaining >= callCount) {
+    usage[apiName].remaining -= callCount;
+    usage[apiName].used += callCount;
+  }
+  saveUsage(usage);
+}
+
+/**
+ * Reset mock API usage to initial values (for testing)
+ */
+export function resetMockApiUsage() {
+  localStorage.removeItem('mock_api_usage');
+}
+
+/**
+ * Force clear all API-related localStorage (including old cached data)
+ */
+export function clearAllApiCache() {
+  // Clear mock usage
+  localStorage.removeItem('mock_api_usage');
+
+  // Clear any old API cache keys that might exist
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('api_usage') || key.includes('_usage'))) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach(key => localStorage.removeItem(key));
+}
+
 /**
  * Mock API usage data
  */
@@ -13,29 +81,30 @@ export async function getMockApiUsage(): Promise<ApiResponse<ApiUsageData>> {
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 500));
 
+  const usage = getCurrentUsage();
+
   return {
     success: true,
     data: {
-      zillow: {
-        used: 15,
-        limit: 100,
-        remaining: 85,
-        period: 'monthly',
-        resetDate: '2025-11-30'
+      privateZillow: {
+        ...usage.privateZillow,
+        period: 'month',
+        resetDate: '2026-02-01'
       },
       usRealEstate: {
-        used: 8,
-        limit: 300,
-        remaining: 262,
-        period: 'monthly',
-        resetDate: '2025-11-30'
+        ...usage.usRealEstate,
+        period: 'month',
+        resetDate: '2026-02-01'
+      },
+      redfin: {
+        ...usage.redfin,
+        period: 'month',
+        resetDate: '2026-02-01'
       },
       gemini: {
-        used: 45,
-        limit: 1500,
-        remaining: 1455,
-        period: 'daily',
-        resetDate: '2025-11-16'
+        ...usage.gemini,
+        period: 'day',
+        resetDate: '2026-01-06'
       }
     },
     timestamp: new Date().toISOString()
@@ -46,6 +115,20 @@ export async function getMockApiUsage(): Promise<ApiResponse<ApiUsageData>> {
  * Mock property analysis
  */
 export async function mockAnalyzeProperty(data: PropertyFormData): Promise<ApiResponse> {
+  // Simulate API calls based on analysis mode
+  if (data.analysisMode === 'DEEP') {
+    // Deep analysis uses multiple APIs
+    simulateApiUsage('privateZillow', 2); // Property details + comps
+    simulateApiUsage('usRealEstate', 3);  // Similar homes + rental comps + schools
+    simulateApiUsage('redfin', 1);        // Additional market data
+    simulateApiUsage('gemini', 2);        // AI insights
+  } else {
+    // Basic analysis uses fewer calls
+    simulateApiUsage('privateZillow', 1); // Property details
+    simulateApiUsage('usRealEstate', 1);  // Basic data
+    simulateApiUsage('gemini', 1);        // Basic AI
+  }
+
   // Simulate network delay
   await new Promise(resolve => setTimeout(resolve, 2000));
 

@@ -55,23 +55,30 @@ function App() {
   const [propertyId, setPropertyId] = useState<string>('');
   const [propertyHistory, setPropertyHistory] = useState<PropertyHistoryEntry[]>([]);
   const [selectedHistoryData, setSelectedHistoryData] = useState<PropertyFormData | null>(null);
+  const [apiUsageExpanded, setApiUsageExpanded] = useState<boolean>(true);
+  const [refreshingUsage, setRefreshingUsage] = useState<boolean>(false);
 
   // Check if real API is configured
   const API_URL = import.meta.env.VITE_API_URL;
   const isRealApiConfigured = API_URL && API_URL !== '' && !API_URL.includes('YOUR_SCRIPT_ID');
 
+  // Initialize API configuration on mount
+  useEffect(() => {
+    // API configuration happens automatically based on VITE_API_URL
+  }, []);
+
   useEffect(() => {
     // Fetch API usage and load property history on mount
     const fetchUsage = async () => {
       try {
-        const usageResponse = isRealApiConfigured
-          ? await getApiUsage()
-          : await getMockApiUsage();
-        if (usageResponse.success && usageResponse.data) {
-          setApiUsage(usageResponse.data);
-        }
+      const usageResponse = isRealApiConfigured
+        ? await getApiUsage()
+        : await getMockApiUsage();
+      if (usageResponse.success && usageResponse.data) {
+        setApiUsage(usageResponse.data);
+      }
       } catch (err) {
-        console.error('Failed to fetch API usage:', err);
+        // Silently handle API usage fetch errors
       }
     };
 
@@ -86,11 +93,22 @@ function App() {
 
     fetchUsage();
     loadHistory();
-  }, []);
+
+    // Auto-refresh API usage every 30 seconds
+    const usageInterval = setInterval(fetchUsage, 30000);
+
+    return () => {
+      clearInterval(usageInterval);
+    };
+  }, [isRealApiConfigured]);
 
   const handleFormSubmit = async (data: PropertyFormData) => {
     setLoading(true);
     setError('');
+
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:100',message:'Analysis started',data:{isRealApi:isRealApiConfigured,address:data.address},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,E'})}).catch(()=>{});
+    // #endregion
 
     try {
       // Generate unique property ID
@@ -106,6 +124,10 @@ function App() {
       const response = isRealApiConfigured
         ? await analyzeProperty(data)
         : await mockAnalyzeProperty(data);
+
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:119',message:'Analysis response received',data:{success:response.success,hasData:!!response.data,isRealApi:isRealApiConfigured},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,E'})}).catch(()=>{});
+      // #endregion
 
       if (response.success && response.data) {
         // Ensure property field exists in the response
@@ -133,17 +155,34 @@ function App() {
         // Clear selected history data
         setSelectedHistoryData(null);
 
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:146',message:'About to refresh API usage',data:{isRealApi:isRealApiConfigured,currentUsage:apiUsage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         // Refresh API usage after analysis
         const usageResponse = isRealApiConfigured
           ? await getApiUsage()
           : await getMockApiUsage();
+
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:151',message:'API usage refresh response',data:{success:usageResponse.success,data:usageResponse.data,isRealApi:isRealApiConfigured},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+
         if (usageResponse.success && usageResponse.data) {
           setApiUsage(usageResponse.data);
+
+          // #region agent log
+          fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:156',message:'API usage state updated',data:{newUsage:usageResponse.data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
         }
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
     } catch (err) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:162',message:'Analysis error',data:{error:err instanceof Error ? err.message : String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
+
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
@@ -297,8 +336,53 @@ function App() {
     window.print();
   };
 
+  const handleRefreshUsage = async () => {
+    setRefreshingUsage(true);
+    try {
+      const usageResponse = isRealApiConfigured
+        ? await getApiUsage()
+        : await getMockApiUsage();
+      if (usageResponse.success && usageResponse.data) {
+        setApiUsage(usageResponse.data);
+      }
+    } catch (err) {
+      console.error('Failed to refresh API usage:', err);
+    } finally {
+      setRefreshingUsage(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* Mock Mode Warning Banner */}
+      {!isRealApiConfigured && (
+        <div className="bg-yellow-100 border-b-2 border-yellow-400 px-4 py-3">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-yellow-800">
+                  ⚠️ Mock Data Mode - Using Simulated Data
+                </p>
+                <p className="text-xs text-yellow-700">
+                  API usage and analysis results are simulated. To use real data, configure VITE_API_URL in web-app/.env
+                </p>
+              </div>
+            </div>
+            <a
+              href="https://github.com/yourusername/real-estate-tool/blob/main/web-app/env.example"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs bg-yellow-200 hover:bg-yellow-300 text-yellow-800 px-3 py-1 rounded transition-colors"
+            >
+              Setup Guide
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Menu Bar */}
       <MenuBar
         onNewAnalysis={handleNewAnalysis}
@@ -340,35 +424,168 @@ function App() {
           <p className="text-gray-600 text-lg">Analyze flip and rental investment opportunities with AI-powered insights</p>
         </header>
 
+        {/* Cache Warning Banner */}
+        {isRealApiConfigured && (
+          <div className="max-w-7xl mx-auto mb-4 animate-slideIn">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="flex items-center gap-2 text-sm text-blue-800">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>
+                  <strong>Note:</strong> Analyzing the same address within 6 hours uses <strong>cached data</strong> and won't make new API calls.
+                  To see API usage numbers update, analyze a <strong>different address</strong>.
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* API Usage Banner */}
         {apiUsage && (
-          <div className="max-w-4xl mx-auto mb-6 animate-slideIn">
-            <div className="bg-gradient-to-r from-white to-gray-50 rounded-xl shadow-md p-5 border border-gray-200 hover:shadow-lg transition-shadow duration-300">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
+          <div className="max-w-7xl mx-auto mb-6">
+            <div className="bg-gradient-to-r from-white to-gray-50 rounded-lg shadow-md border border-gray-200">
+              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setApiUsageExpanded(!apiUsageExpanded)}>
+                <div className="flex items-center gap-3">
                   <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
-                  <span className="font-semibold text-gray-700">API Usage:</span>
+                  <span className="font-semibold text-gray-800">API Usage Monitor</span>
+                  {!isRealApiConfigured && (
+                    <span className="text-xs bg-yellow-200 text-yellow-800 px-2 py-0.5 rounded font-semibold">
+                      MOCK DATA
+                    </span>
+                  )}
+                  {isRealApiConfigured && (
+                    <span className="text-xs bg-green-200 text-green-800 px-2 py-0.5 rounded font-semibold">
+                      LIVE DATA
+                    </span>
+                  )}
                 </div>
-                <div className="flex gap-6">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600 font-medium">Zillow:</span>
-                    <span className="px-2 py-1 bg-primary-100 text-primary-700 rounded-md font-semibold">
-                      {apiUsage.zillow.remaining}/{apiUsage.zillow.limit}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600 font-medium">US Real Estate:</span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md font-semibold">
-                      {apiUsage.usRealEstate.remaining}/{apiUsage.usRealEstate.limit}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-600 font-medium">Gemini:</span>
-                    <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md font-semibold">
-                      {apiUsage.gemini.remaining}/{apiUsage.gemini.limit}
-                    </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRefreshUsage();
+                    }}
+                    disabled={refreshingUsage}
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors disabled:opacity-50"
+                    title="Refresh API usage"
+                  >
+                    <svg
+                      className={`w-4 h-4 text-gray-600 ${refreshingUsage ? 'animate-spin' : ''}`}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <svg
+                    className={`w-5 h-5 text-gray-600 transition-transform duration-300 ${apiUsageExpanded ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+              </div>
+
+              <div className={`overflow-hidden transition-all duration-300 ${apiUsageExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+                <div className="px-5 pb-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Private Zillow */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">Private Zillow</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">
+                          #1
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-gray-900">{apiUsage.privateZillow?.remaining ?? 0}</span>
+                        <span className="text-xs text-gray-500">/ {apiUsage.privateZillow?.limit ?? 250}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${
+                            ((apiUsage.privateZillow?.remaining ?? 0) / (apiUsage.privateZillow?.limit ?? 250)) > 0.5 ? 'bg-green-500' :
+                            ((apiUsage.privateZillow?.remaining ?? 0) / (apiUsage.privateZillow?.limit ?? 250)) > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${((apiUsage.privateZillow?.remaining ?? 0) / (apiUsage.privateZillow?.limit ?? 250)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* US Real Estate */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">US Real Estate</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">
+                          #2
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-gray-900">{apiUsage.usRealEstate?.remaining ?? 0}</span>
+                        <span className="text-xs text-gray-500">/ {apiUsage.usRealEstate?.limit ?? 300}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${
+                            ((apiUsage.usRealEstate?.remaining ?? 0) / (apiUsage.usRealEstate?.limit ?? 300)) > 0.5 ? 'bg-green-500' :
+                            ((apiUsage.usRealEstate?.remaining ?? 0) / (apiUsage.usRealEstate?.limit ?? 300)) > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${((apiUsage.usRealEstate?.remaining ?? 0) / (apiUsage.usRealEstate?.limit ?? 300)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Redfin */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">Redfin Base</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded font-medium">
+                          #3
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-gray-900">{apiUsage.redfin?.remaining ?? 0}</span>
+                        <span className="text-xs text-gray-500">/ {apiUsage.redfin?.limit ?? 111}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${
+                            ((apiUsage.redfin?.remaining ?? 0) / (apiUsage.redfin?.limit ?? 111)) > 0.5 ? 'bg-green-500' :
+                            ((apiUsage.redfin?.remaining ?? 0) / (apiUsage.redfin?.limit ?? 111)) > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${((apiUsage.redfin?.remaining ?? 0) / (apiUsage.redfin?.limit ?? 111)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Gemini AI */}
+                    <div className="bg-white rounded-lg p-3 shadow-sm border border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-semibold text-gray-700">Gemini AI</span>
+                        <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-medium">
+                          Fallback
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xl font-bold text-gray-900">{apiUsage.gemini?.remaining ?? 0}</span>
+                        <span className="text-xs text-gray-500">/ {apiUsage.gemini?.limit ?? 1500}</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full transition-all duration-500 ${
+                            ((apiUsage.gemini?.remaining ?? 0) / (apiUsage.gemini?.limit ?? 1500)) > 0.5 ? 'bg-green-500' :
+                            ((apiUsage.gemini?.remaining ?? 0) / (apiUsage.gemini?.limit ?? 1500)) > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${((apiUsage.gemini?.remaining ?? 0) / (apiUsage.gemini?.limit ?? 1500)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -403,7 +620,7 @@ function App() {
               <>
                 {/* Property History */}
                 <PropertyHistory
-                  history={propertyHistory}
+                  history={propertyHistory.slice(0, 6)}
                   onSelectProperty={handleSelectPropertyFromHistory}
                   onRemoveProperty={handleRemovePropertyFromHistory}
                   onClearHistory={handleClearHistory}

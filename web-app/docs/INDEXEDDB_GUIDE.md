@@ -21,7 +21,7 @@ The Real Estate Analysis Tool uses **IndexedDB** (via Dexie.js) as the primary s
 
 ## Database Schema
 
-The database (`RealEstateAnalysisDB`) contains 5 tables:
+The database (`RealEstateAnalysisDB`) contains 4 tables:
 
 ### 1. `propertyAnalyses`
 Stores complete property analysis results including comps, flip analysis, rental analysis, score, alerts, and insights.
@@ -39,23 +39,7 @@ Stores complete property analysis results including comps, flip analysis, rental
 - Retrieve past analyses
 - Offline access to analysis data
 
-### 2. `compsCache`
-Caches comparable properties data with automatic 24-hour expiration.
-
-**Fields:**
-- `id` (auto-increment)
-- `cacheKey` (string, indexed) - Format: `address_city_state_zip`
-- `comps` (array)
-- `timestamp` (string, indexed)
-- `expiresAt` (string, indexed) - 24 hours from timestamp
-
-**Use Cases:**
-- Cache API responses for comps
-- Reduce API calls
-- Faster load times for repeated searches
-- Automatic cleanup of expired cache
-
-### 3. `projectTrackers`
+### 2. `projectTrackers`
 Stores project tracking data for renovation projects.
 
 **Fields:**
@@ -70,7 +54,7 @@ Stores project tracking data for renovation projects.
 - Track delays and change orders
 - Budget monitoring
 
-### 4. `partnershipData`
+### 3. `partnershipData`
 Stores partnership management data including partners, contributions, and distributions.
 
 **Fields:**
@@ -85,7 +69,7 @@ Stores partnership management data including partners, contributions, and distri
 - Calculate waterfall distributions
 - Monitor partner performance
 
-### 5. `propertyHistory`
+### 4. `propertyHistory`
 Stores recent property searches (max 10 entries).
 
 **Fields:**
@@ -129,32 +113,6 @@ const analysis = await getPropertyAnalysis(propertyId);
 import { getAllPropertyAnalyses } from '../utils/db';
 
 const allAnalyses = await getAllPropertyAnalyses();
-```
-
-### Comps Cache
-
-```typescript
-// Save comps to cache
-import { saveCompsCache } from '../utils/db';
-
-await saveCompsCache(
-  address,
-  city,
-  state,
-  zip,
-  compsArray
-);
-
-// Get cached comps
-import { getCompsCache } from '../utils/db';
-
-const cachedComps = await getCompsCache(address, city, state, zip);
-// Returns null if not found or expired
-
-// Clear expired cache (runs automatically on startup)
-import { clearExpiredCompsCache } from '../utils/db';
-
-await clearExpiredCompsCache();
 ```
 
 ### Project Tracker

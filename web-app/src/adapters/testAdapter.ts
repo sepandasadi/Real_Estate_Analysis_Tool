@@ -274,24 +274,20 @@ function testQuotaManagerGetLimits(): void {
 
   assert(limits !== null, 'Limits should not be null');
   assert(typeof limits === 'object', 'Limits should be an object');
-  assert(limits.ZILLOW_MONTHLY_LIMIT === 100, 'Zillow limit should be 100');
+  assert(limits.PRIVATE_ZILLOW_MONTHLY_LIMIT === 250, 'Private Zillow limit should be 250');
   assert(limits.US_REAL_ESTATE_MONTHLY_LIMIT === 300, 'US Real Estate limit should be 300');
 }
 
 function testQuotaManagerUsage(): void {
-  const testPeriod = 'test_2025_11';
+  // Note: QuotaManager in web-app uses header-based tracking, not manual tracking
+  // These methods don't exist in the web-app adapter:
+  // - setUsage() - usage is extracted from API response headers
+  // - incrementUsage() - usage is tracked automatically
+  // - getUsage() with period parameter - only takes apiName
 
-  // Set usage
-  const setResult = QuotaManager.setUsage('test_api', testPeriod, 5);
-  assert(setResult === true, 'Set usage should return true');
-
-  // Get usage
-  const usage = QuotaManager.getUsage('test_api', testPeriod);
-  assert(usage === 5, 'Usage should be 5');
-
-  // Increment usage
-  const newUsage = QuotaManager.incrementUsage('test_api', testPeriod);
-  assert(newUsage === 6, 'Usage should be incremented to 6');
+  // Test getUsage (header-based)
+  const usage = QuotaManager.getUsage('test_api');
+  assert(usage === null || typeof usage === 'object', 'Usage should be null or object');
 
   // Track success
   const trackResult = QuotaManager.trackSuccess('test_api');
@@ -300,9 +296,6 @@ function testQuotaManagerUsage(): void {
   // Get last success
   const lastSuccess = QuotaManager.getLastSuccess();
   assert(lastSuccess.api === 'test_api', 'Last success API should be test_api');
-
-  // Cleanup
-  QuotaManager.setUsage('test_api', testPeriod, 0);
 }
 
 /**
@@ -406,21 +399,14 @@ export async function testIntegrationWorkflow(): Promise<void> {
     assert(cached !== null, 'Should retrieve from cache');
     assert(cached.source === 'httpbin', 'Cached data should match');
 
-    // 4. Track quota usage
-    console.log('Step 4: Tracking quota usage...');
-    const testPeriod = 'integration_2025_11';
-    const usage = QuotaManager.incrementUsage('integration_test', testPeriod);
-    assert(usage > 0, 'Usage should be incremented');
-
-    // 5. Track success
-    console.log('Step 5: Tracking success...');
+    // 4. Track success
+    console.log('Step 4: Tracking success...');
     const trackResult = QuotaManager.trackSuccess('integration_test');
     assert(trackResult === true, 'Should track success');
 
-    // 6. Cleanup
-    console.log('Step 6: Cleaning up...');
+    // 5. Cleanup
+    console.log('Step 5: Cleaning up...');
     CacheManager.remove(cacheKey);
-    QuotaManager.setUsage('integration_test', testPeriod, 0);
 
     console.log('✅ Integration test passed');
   } catch (error) {
@@ -439,7 +425,7 @@ export async function testAdapterQuick(): Promise<void> {
   const httpWorks = (await HttpClient.get('https://httpbin.org/get')).success;
   const cacheWorks =
     CacheManager.set('test', { value: 1 }) && CacheManager.get('test') !== null;
-  const quotaWorks = QuotaManager.getQuotaLimits().ZILLOW_MONTHLY_LIMIT === 100;
+  const quotaWorks = QuotaManager.getQuotaLimits().PRIVATE_ZILLOW_MONTHLY_LIMIT === 250;
 
   if (httpWorks && cacheWorks && quotaWorks) {
     console.log('✅ All adapter components working');
@@ -453,6 +439,84 @@ export async function testAdapterQuick(): Promise<void> {
 }
 
 /**
+ * Show current cached API usage values
+ */
+export function showCachedUsage(): void {
+  console.log('📊 Current Cached API Usage:');
+  console.log('─────────────────────────────');
+
+  const cached = localStorage.getItem('mock_api_usage');
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      console.log('Private Zillow:', `${data.privateZillow?.remaining ?? '?'}/${data.privateZillow?.limit ?? '?'}`);
+      console.log('US Real Estate:', `${data.usRealEstate?.remaining ?? '?'}/${data.usRealEstate?.limit ?? '?'}`);
+      console.log('Redfin:', `${data.redfin?.remaining ?? '?'}/${data.redfin?.limit ?? '?'}`);
+      console.log('Gemini:', `${data.gemini?.remaining ?? '?'}/${data.gemini?.limit ?? '?'}`);
+      console.log('');
+      console.log('Raw data:', data);
+    } catch (e) {
+      console.error('❌ Failed to parse cached data:', e);
+    }
+  } else {
+    console.log('❌ No cached usage data found');
+    console.log('💡 Run resetMockUsage() to initialize');
+  }
+}
+
+/**
+ * Clear all API-related cache data
+ */
+export function clearAllApiCache(): void {
+  console.log('🧹 Clearing all API-related cache...');
+
+  // Clear localStorage mock API usage
+  localStorage.removeItem('mock_api_usage');
+
+  // Clear any other API cache keys
+  const keysToRemove: string[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && (key.includes('api_usage') || key.includes('_usage'))) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach(key => {
+    localStorage.removeItem(key);
+    console.log(`  ✓ Removed: ${key}`);
+  });
+
+  console.log(`✅ Cleared ${keysToRemove.length} cache keys`);
+  console.log('⚠️  Click the refresh button (🔄) in the API Usage banner to reload');
+}
+
+/**
+ * Reset mock API usage to correct initial values
+ */
+export function resetMockApiUsage(): void {
+  console.log('🔄 Resetting mock API usage to default values...');
+
+  const correctInitialUsage = {
+    privateZillow: { used: 42, limit: 250, remaining: 208 },
+    usRealEstate: { used: 87, limit: 300, remaining: 213 },
+    redfin: { used: 23, limit: 111, remaining: 88 },
+    gemini: { used: 312, limit: 1500, remaining: 1188 }
+  };
+
+  localStorage.setItem('mock_api_usage', JSON.stringify(correctInitialUsage));
+
+  console.log('✅ Mock API usage reset:');
+  console.log('  • Private Zillow: 208/250');
+  console.log('  • US Real Estate: 213/300');
+  console.log('  • Redfin: 88/111');
+  console.log('  • Gemini: 1188/1500');
+  console.log('');
+  console.log('⚠️  IMPORTANT: Click the refresh button (🔄) in the API Usage banner');
+  console.log('    or refresh the entire page to see the changes.');
+}
+
+/**
  * Run tests in browser console
  */
 if (typeof window !== 'undefined') {
@@ -462,8 +526,16 @@ if (typeof window !== 'undefined') {
     testQuick: testAdapterQuick,
   };
 
+  (window as any).clearApiCache = clearAllApiCache;
+  (window as any).resetMockUsage = resetMockApiUsage;
+  (window as any).showCachedUsage = showCachedUsage;
+
   console.log('📝 Adapter tests loaded. Run in console:');
   console.log('  - testAdapter.testAll()');
   console.log('  - testAdapter.testIntegration()');
   console.log('  - testAdapter.testQuick()');
+  console.log('\n🧹 Cache management:');
+  console.log('  - showCachedUsage()   - Show current cached values');
+  console.log('  - resetMockUsage()    - Reset to correct values');
+  console.log('  - clearApiCache()     - Clear all API cache');
 }

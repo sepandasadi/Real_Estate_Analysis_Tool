@@ -39,17 +39,7 @@ function runAllMigrationTests() {
     PlatformLogger.error("❌ Test 2: QuotaManager - FAILED: " + e);
   }
 
-  // Test 3: CacheManager Functions
-  try {
-    testCacheManager();
-    passed++;
-    PlatformLogger.success("✅ Test 3: CacheManager - PASSED");
-  } catch (e) {
-    failed++;
-    PlatformLogger.error("❌ Test 3: CacheManager - FAILED: " + e);
-  }
-
-  // Test 4: PlatformLogger Functions
+  // Test 3: PlatformLogger Functions
   try {
     testPlatformLogger();
     passed++;
@@ -77,16 +67,6 @@ function runAllMigrationTests() {
   } catch (e) {
     failed++;
     PlatformLogger.error("❌ Test 6: API Bridge Functions - FAILED: " + e);
-  }
-
-  // Test 7: Migrated Cache Functions
-  try {
-    testCacheFunctions();
-    passed++;
-    PlatformLogger.success("✅ Test 7: Cache Functions - PASSED");
-  } catch (e) {
-    failed++;
-    PlatformLogger.error("❌ Test 7: Cache Functions - FAILED: " + e);
   }
 
   // Summary
@@ -117,17 +97,6 @@ function testAdapterAvailability() {
   }
   if (typeof HttpClient.post !== 'function') {
     throw new Error("HttpClient.post not found");
-  }
-
-  // Check CacheManager
-  if (typeof CacheManager === 'undefined') {
-    throw new Error("CacheManager adapter not found");
-  }
-  if (typeof CacheManager.get !== 'function') {
-    throw new Error("CacheManager.get not found");
-  }
-  if (typeof CacheManager.set !== 'function') {
-    throw new Error("CacheManager.set not found");
   }
 
   // Check QuotaManager
@@ -205,52 +174,7 @@ function testQuotaManager() {
 }
 
 /**
- * Test 3: CacheManager functionality
- */
-function testCacheManager() {
-  PlatformLogger.info("Testing CacheManager...");
-
-  const testKey = 'test_migration_key';
-  const testData = { test: 'data', timestamp: Date.now() };
-
-  // Test set
-  const setResult = CacheManager.set(testKey, testData, 300);
-  if (typeof setResult !== 'boolean') {
-    throw new Error("CacheManager.set should return a boolean");
-  }
-
-  // Test has
-  const hasResult = CacheManager.has(testKey);
-  if (typeof hasResult !== 'boolean') {
-    throw new Error("CacheManager.has should return a boolean");
-  }
-
-  // Test get
-  const getData = CacheManager.get(testKey);
-  if (getData === null) {
-    throw new Error("CacheManager.get should return cached data");
-  }
-  if (getData.test !== 'data') {
-    throw new Error("Cached data doesn't match");
-  }
-
-  // Test remove
-  const removeResult = CacheManager.remove(testKey);
-  if (typeof removeResult !== 'boolean') {
-    throw new Error("CacheManager.remove should return a boolean");
-  }
-
-  // Verify removed
-  const afterRemove = CacheManager.get(testKey);
-  if (afterRemove !== null) {
-    throw new Error("Data should be removed from cache");
-  }
-
-  PlatformLogger.debug("CacheManager tests passed");
-}
-
-/**
- * Test 4: PlatformLogger functionality
+ * Test 3: PlatformLogger functionality
  */
 function testPlatformLogger() {
   PlatformLogger.info("Testing PlatformLogger...");
@@ -342,60 +266,6 @@ function testApiBridgeFunctions() {
 }
 
 /**
- * Test 7: Migrated Cache functions
- */
-function testCacheFunctions() {
-  PlatformLogger.info("Testing migrated cache functions...");
-
-  const testAddress = "123 Test St";
-  const testCity = "Test City";
-  const testState = "CA";
-  const testZip = "12345";
-  const testComps = [
-    { address: "125 Test St", price: 500000, sqft: 1500 },
-    { address: "127 Test St", price: 525000, sqft: 1600 }
-  ];
-
-  // Test generateCompsKey
-  const key = generateCompsKey(testAddress, testCity, testState, testZip);
-  if (typeof key !== 'string') {
-    throw new Error("generateCompsKey should return a string");
-  }
-
-  // Test setCachedComps (should use CacheManager)
-  const setResult = setCachedComps(testAddress, testCity, testState, testZip, testComps);
-  if (typeof setResult !== 'boolean') {
-    throw new Error("setCachedComps should return a boolean");
-  }
-
-  // Test getCachedComps (should use CacheManager)
-  const cached = getCachedComps(testAddress, testCity, testState, testZip);
-  if (!Array.isArray(cached)) {
-    throw new Error("getCachedComps should return an array");
-  }
-  if (cached.length !== testComps.length) {
-    throw new Error("Cached comps count doesn't match");
-  }
-
-  // Test getCacheStats (should use CacheManager)
-  const stats = getCacheStats(testAddress, testCity, testState, testZip);
-  if (typeof stats !== 'object') {
-    throw new Error("getCacheStats should return an object");
-  }
-  if (!stats.hasOwnProperty('exists')) {
-    throw new Error("Cache stats should have 'exists' property");
-  }
-
-  // Test clearCachedComps (should use CacheManager)
-  const clearResult = clearCachedComps(testAddress, testCity, testState, testZip);
-  if (typeof clearResult !== 'boolean') {
-    throw new Error("clearCachedComps should return a boolean");
-  }
-
-  PlatformLogger.debug("Cache function tests passed");
-}
-
-/**
  * Quick test - Run a subset of critical tests
  */
 function quickMigrationTest() {
@@ -412,13 +282,6 @@ function quickMigrationTest() {
     const available = checkQuotaAvailable('zillow', 'month');
 
     PlatformLogger.success("✅ API Bridge functions working");
-
-    // Test cache
-    const testComps = [{ address: "Test", price: 500000, sqft: 1500 }];
-    setCachedComps("Test", "City", "CA", "12345", testComps);
-    const cached = getCachedComps("Test", "City", "CA", "12345");
-
-    PlatformLogger.success("✅ Cache functions working");
 
     PlatformLogger.success("🎉 Quick test passed! Migration successful.");
     return true;

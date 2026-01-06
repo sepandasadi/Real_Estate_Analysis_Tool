@@ -218,14 +218,18 @@ function enrichCompWithQualityScore(comp, targetProperty) {
 
   // Data source quality (20 points)
   if (comp.dataSource) {
-    if (comp.dataSource.includes('property_comps') || comp.dataSource.includes('similar_homes')) {
-      score += 20; // AI-matched comps
+    if (comp.dataSource.includes('private_zillow_comps')) {
+      score += 20; // Highest quality - Private Zillow AI-matched
+    } else if (comp.dataSource.includes('us_real_estate_similar_homes') || comp.dataSource.includes('property_comps')) {
+      score += 19; // High quality - US Real Estate AI-matched
+    } else if (comp.dataSource.includes('redfin_comps')) {
+      score += 18; // Good quality - Redfin verified
     } else if (comp.dataSource.includes('sold_homes')) {
       score += 15; // Filtered search
-    } else if (comp.dataSource.includes('generic_search')) {
+    } else if (comp.dataSource.includes('generic_search') || comp.dataSource.includes('search')) {
       score += 10; // Generic search
     } else if (comp.dataSource.includes('gemini') || comp.dataSource.includes('ai')) {
-      score += 5; // AI-generated
+      score += 5; // AI-generated fallback
     }
   }
 

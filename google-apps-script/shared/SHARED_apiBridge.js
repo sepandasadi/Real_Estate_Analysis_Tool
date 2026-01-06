@@ -1,7 +1,8 @@
 /**
- * API Base URLs
+ * API Base URLs (UPDATED)
  */
-const ZILLOW_BASE_URL = 'https://zillow-com1.p.rapidapi.com';
+const PRIVATE_ZILLOW_BASE_URL = 'https://private-zillow.p.rapidapi.com';
+const REDFIN_BASE_URL = 'https://redfin-base-us.p.rapidapi.com';
 const US_REAL_ESTATE_BASE_URL = 'https://us-real-estate.p.rapidapi.com';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com';
 
@@ -56,45 +57,55 @@ function checkQuotaAvailable(apiName, period = 'month') {
 }
 
 /**
- * Display current API usage and quotas
+ * Display current API usage from RapidAPI response headers
  * Run this from: REI Tools > Advanced Tools > Check API Usage
- * MIGRATED: Phase 0.6 - Now uses QuotaManager adapter
+ * UPDATED: Now uses header-based real-time tracking
  */
 function showAPIUsage() {
-  const quotas = getApiQuotas();
-  const now = new Date();
-  const currentMonth = now.toISOString().slice(0, 7);
-  const currentDay = now.toISOString().slice(0, 10);
+  const cache = CacheService.getScriptCache();
 
-  // Get usage
-  const zillowUsage = QuotaManager.getUsage('zillow', currentMonth);
-  const usRealEstateUsage = QuotaManager.getUsage('us_real_estate', currentMonth);
-  const geminiUsage = QuotaManager.getUsage('gemini', currentDay);
+  // Get cached usage from response headers
+  const privateZillowUsage = JSON.parse(cache.get('private_zillow_usage') || 'null');
+  const usRealEstateUsage = JSON.parse(cache.get('us_real_estate_usage') || 'null');
+  const redfinUsage = JSON.parse(cache.get('redfin_usage') || 'null');
+  const geminiUsage = JSON.parse(cache.get('gemini_usage') || 'null');
 
   // Get last success info
   const lastSuccess = QuotaManager.getLastSuccess();
 
   // Build message
   const message = `
-📊 API Usage Report (${currentMonth})
+📊 API Usage Report (Real-time from RapidAPI Headers)
 
-🏠 Zillow API:
-   Used: ${zillowUsage} / ${quotas.ZILLOW_MONTHLY_LIMIT}
-   Remaining: ${quotas.ZILLOW_MONTHLY_LIMIT - zillowUsage}
-   Status: ${zillowUsage < quotas.ZILLOW_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+🔹 Private Zillow (Priority 1)
+   ${privateZillowUsage ?
+     `Used: ${privateZillowUsage.used}/${privateZillowUsage.limit} (${privateZillowUsage.percentage.toFixed(1)}%)
+   Remaining: ${privateZillowUsage.remaining}` :
+     'No recent calls - usage unknown'}
 
-🔑 US Real Estate API:
-   Used: ${usRealEstateUsage} / ${quotas.US_REAL_ESTATE_MONTHLY_LIMIT}
-   Remaining: ${quotas.US_REAL_ESTATE_MONTHLY_LIMIT - usRealEstateUsage}
-   Status: ${usRealEstateUsage < quotas.US_REAL_ESTATE_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+🔹 US Real Estate (Priority 2)
+   ${usRealEstateUsage ?
+     `Used: ${usRealEstateUsage.used}/${usRealEstateUsage.limit} (${usRealEstateUsage.percentage.toFixed(1)}%)
+   Remaining: ${usRealEstateUsage.remaining}` :
+     'No recent calls - usage unknown'}
 
-🤖 Gemini AI (Today):
-   Used: ${geminiUsage} / ${quotas.GEMINI_DAILY_LIMIT}
-   Remaining: ${quotas.GEMINI_DAILY_LIMIT - geminiUsage}
-   Status: ${geminiUsage < quotas.GEMINI_THRESHOLD ? '✅ Available' : '⚠️ Near Limit'}
+🔹 Redfin Base US (Priority 3)
+   ${redfinUsage ?
+     `Used: ${redfinUsage.used}/${redfinUsage.limit} (${redfinUsage.percentage.toFixed(1)}%)
+   Remaining: ${redfinUsage.remaining}` :
+     'No recent calls - usage unknown'}
+
+🔹 Gemini AI (Priority 4 - Fallback)
+   ${geminiUsage ?
+     `Used: ${geminiUsage.used}/${geminiUsage.limit} (${geminiUsage.percentage.toFixed(1)}%)
+   Remaining: ${geminiUsage.remaining}` :
+     'No recent calls - usage unknown'}
 
 Last Successful API: ${lastSuccess.api}
 Last Success Time: ${lastSuccess.time}
+
+ℹ️ Usage data is updated in real-time from API response headers.
+ℹ️ Data is cached for 1 hour. Make an API call to refresh.
   `;
 
   SpreadsheetApp.getUi().alert('API Usage Report', message, SpreadsheetApp.getUi().ButtonSet.OK);
@@ -160,6 +171,10 @@ function retryWithBackoff(fn, maxRetries = 3, initialDelay = 1000) {
  * @returns {Array} Array of comparable properties
  */
 function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
+  // #region agent log
+  Logger.log(JSON.stringify({location:'SHARED_apiBridge.js:173',message:'fetchCompsData called',data:{address:data.address,forceRefresh:forceRefresh},timestamp:new Date().getTime(),sessionId:'debug-session',runId:'run1',hypothesisId:'J,K,L'}));
+  // #endregion
+
   // Get analysis mode if not provided
   const mode = analysisMode || getAnalysisMode();
 
@@ -171,27 +186,21 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
 
   let comps = [];
 
-  // Check cache first (unless force refresh)
-  if (!forceRefresh) {
-    const cachedComps = getCachedComps(data.address, data.city, data.state, data.zip);
-    if (cachedComps && cachedComps.length > 0) {
-      PlatformLogger.info(`📦 Using cached comps (${cachedComps.length} properties) [${mode} mode]`);
-      return cachedComps;
-    }
-  } else {
-    PlatformLogger.info(`🔄 Force refresh requested, bypassing cache [${mode} mode]`);
-  }
-
   // Priority 1: Try Zillow Recently Sold by Zip Code (if quota available) - 100 requests/month
   // UPDATED: Search by zip code to get real sold properties in the area
   if (checkQuotaAvailable('zillow', 'month')) {
     try {
+      // #region agent log
+      Logger.log(JSON.stringify({location:'SHARED_apiBridge.js:205',message:'Making REAL API call to Zillow',timestamp:new Date().getTime(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'}));
+      // #endregion
       PlatformLogger.info("🏠 Trying Zillow Recently Sold by Zip Code (Priority 1 - 100/month)...");
       comps = retryWithBackoff(() => fetchRecentlySoldByZip(data, 'zillow'));
       if (comps && comps.length > 0) {
+        // #region agent log
+        Logger.log(JSON.stringify({location:'SHARED_apiBridge.js:213',message:'Zillow API call SUCCESS',data:{compsCount:comps.length},timestamp:new Date().getTime(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'}));
+        // #endregion
         PlatformLogger.success(`Zillow Recently Sold SUCCESS: ${comps.length} real comps`);
         trackAPIUsage('zillow', true);
-        setCachedComps(data.address, data.city, data.state, data.zip, comps);
         return comps;
       }
     } catch (err) {
@@ -206,12 +215,17 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
   // UPDATED: Search by zip code to get real sold properties in the area
   if (checkQuotaAvailable('us_real_estate', 'month')) {
     try {
+      // #region agent log
+      Logger.log(JSON.stringify({location:'SHARED_apiBridge.js:230',message:'Making REAL API call to US Real Estate',timestamp:new Date().getTime(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'}));
+      // #endregion
       PlatformLogger.info("🔑 Trying US Real Estate Sold Homes by Zip (Priority 2 - 300/month)...");
       comps = retryWithBackoff(() => fetchRecentlySoldByZip(data, 'us_real_estate'));
       if (comps && comps.length > 0) {
+        // #region agent log
+        Logger.log(JSON.stringify({location:'SHARED_apiBridge.js:238',message:'US Real Estate API call SUCCESS',data:{compsCount:comps.length},timestamp:new Date().getTime(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'}));
+        // #endregion
         PlatformLogger.success(`US Real Estate Sold Homes SUCCESS: ${comps.length} real comps`);
         trackAPIUsage('us_real_estate', true);
-        setCachedComps(data.address, data.city, data.state, data.zip, comps);
         return comps;
       }
     } catch (err) {
@@ -231,7 +245,6 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
       if (comps && comps.length > 0) {
         PlatformLogger.success(`Gemini SUCCESS: ${comps.length} comps`);
         trackAPIUsage('gemini', true);
-        setCachedComps(data.address, data.city, data.state, data.zip, comps);
         return comps;
       }
     } catch (err) {
@@ -251,7 +264,6 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
       PlatformLogger.info("📊 Bridge market data available, generating estimated comps");
       comps = generateCompsFromMarketData(data, marketData);
       trackAPIUsage('bridge', true);
-      setCachedComps(data.address, data.city, data.state, data.zip, comps);
       return comps;
     }
   } catch (err) {
@@ -1723,16 +1735,6 @@ function fetchRentalComps(data, forceRefresh = false) {
   const source = data.apiSource.toLowerCase();
   let rentalComps = [];
 
-  // Check cache first (unless force refresh)
-  if (!forceRefresh) {
-    const cacheKey = `rental_${data.address}_${data.city}_${data.state}_${data.zip}`;
-    const cached = getCachedComps(cacheKey, "", "", "");
-    if (cached && cached.length > 0) {
-      PlatformLogger.info(`📦 Using cached rental comps (${cached.length} properties)`);
-      return cached;
-    }
-  }
-
   try {
     if (source === 'bridge') {
       rentalComps = retryWithBackoff(() => {
@@ -1773,12 +1775,6 @@ function fetchRentalComps(data, forceRefresh = false) {
       rentalComps = [];
     }
     rentalComps = rentalComps.filter(c => c && c.rent && c.rent > 0);
-
-    // Cache the results
-    if (rentalComps.length > 0) {
-      const cacheKey = `rental_${data.address}_${data.city}_${data.state}_${data.zip}`;
-      setCachedComps(cacheKey, "", "", "", rentalComps);
-    }
 
   } catch (err) {
     PlatformLogger.error("fetchRentalComps error: " + err);

@@ -21,14 +21,6 @@ export interface PropertyAnalysis {
   displayAddress: string;
 }
 
-export interface CompsCache {
-  id?: number;
-  cacheKey: string; // address_city_state_zip
-  comps: any[];
-  timestamp: string;
-  expiresAt: string; // 24 hours from timestamp
-}
-
 export interface ProjectTracker {
   id?: number;
   propertyId: string;
@@ -58,7 +50,6 @@ export interface PropertyHistory {
 export class RealEstateDB extends Dexie {
   // Tables
   propertyAnalyses!: Table<PropertyAnalysis, number>;
-  compsCache!: Table<CompsCache, number>;
   projectTrackers!: Table<ProjectTracker, number>;
   partnershipData!: Table<PartnershipData, number>;
   propertyHistory!: Table<PropertyHistory, number>;
@@ -69,7 +60,6 @@ export class RealEstateDB extends Dexie {
     // Define schema
     this.version(1).stores({
       propertyAnalyses: '++id, propertyId, timestamp, displayAddress',
-      compsCache: '++id, cacheKey, timestamp, expiresAt',
       projectTrackers: '++id, propertyId, lastUpdated',
       partnershipData: '++id, propertyId, lastUpdated',
       propertyHistory: '++id, propertyId, timestamp, displayAddress',
@@ -128,74 +118,6 @@ export async function getAllPropertyAnalyses(): Promise<PropertyAnalysis[]> {
 
 export async function deletePropertyAnalysis(propertyId: string): Promise<void> {
   await db.propertyAnalyses.where('propertyId').equals(propertyId).delete();
-}
-
-// ============================================
-// COMPS CACHE FUNCTIONS
-// ============================================
-
-export async function saveCompsCache(
-  address: string,
-  city: string,
-  state: string,
-  zip: string,
-  comps: any[]
-): Promise<number> {
-  const cacheKey = `${address}_${city}_${state}_${zip}`.toLowerCase();
-  const timestamp = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
-
-  // Check if cache already exists
-  const existing = await db.compsCache.where('cacheKey').equals(cacheKey).first();
-
-  if (existing) {
-    // Update existing
-    await db.compsCache.update(existing.id!, {
-      comps,
-      timestamp,
-      expiresAt,
-    });
-    return existing.id!;
-  } else {
-    // Create new
-    return await db.compsCache.add({
-      cacheKey,
-      comps,
-      timestamp,
-      expiresAt,
-    });
-  }
-}
-
-export async function getCompsCache(
-  address: string,
-  city: string,
-  state: string,
-  zip: string
-): Promise<any[] | null> {
-  const cacheKey = `${address}_${city}_${state}_${zip}`.toLowerCase();
-  const cached = await db.compsCache.where('cacheKey').equals(cacheKey).first();
-
-  if (!cached) {
-    return null;
-  }
-
-  // Check if expired
-  const now = new Date();
-  const expiresAt = new Date(cached.expiresAt);
-
-  if (now > expiresAt) {
-    // Delete expired cache
-    await db.compsCache.delete(cached.id!);
-    return null;
-  }
-
-  return cached.comps;
-}
-
-export async function clearExpiredCompsCache(): Promise<void> {
-  const now = new Date().toISOString();
-  await db.compsCache.where('expiresAt').below(now).delete();
 }
 
 // ============================================
@@ -354,7 +276,6 @@ export async function getAllStoredPropertyIds(): Promise<string[]> {
 export async function clearAllStoredData(): Promise<void> {
   await Promise.all([
     db.propertyAnalyses.clear(),
-    db.compsCache.clear(),
     db.projectTrackers.clear(),
     db.partnershipData.clear(),
     db.propertyHistory.clear(),
@@ -363,20 +284,18 @@ export async function clearAllStoredData(): Promise<void> {
 
 export async function getDatabaseStats(): Promise<{
   analyses: number;
-  comps: number;
   trackers: number;
   partnerships: number;
   history: number;
 }> {
-  const [analyses, comps, trackers, partnerships, history] = await Promise.all([
+  const [analyses, trackers, partnerships, history] = await Promise.all([
     db.propertyAnalyses.count(),
-    db.compsCache.count(),
     db.projectTrackers.count(),
     db.partnershipData.count(),
     db.propertyHistory.count(),
   ]);
 
-  return { analyses, comps, trackers, partnerships, history };
+  return { analyses, trackers, partnerships, history };
 }
 
 // ============================================
@@ -442,6 +361,3 @@ export async function migrateFromLocalStorage(): Promise<void> {
 
 // Auto-run migration on import
 migrateFromLocalStorage();
-
-// Auto-cleanup expired comps cache on startup
-clearExpiredCompsCache();

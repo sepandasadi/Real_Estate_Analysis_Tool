@@ -142,7 +142,7 @@ const MenuBar: React.FC<MenuBarProps> = ({
     { label: 'Keyboard Shortcuts', action: () => alert('Keyboard Shortcuts:\n\nCtrl+N: New Analysis\nCtrl+E: Export\nCtrl+P: Print\nCtrl+M: Toggle Mode\nCtrl+1-9: Quick Tab Navigation') },
     { label: 'Documentation', action: () => window.open('https://github.com/ThinkTankShark/Real_Estate_Analysis_Tool', '_blank') },
     { divider: true },
-    { label: 'About', action: () => alert('Real Estate Analysis Tool v1.0\n\nBuilt with React, TypeScript, and Tailwind CSS\n\n© 2025 All Rights Reserved') },
+    { label: 'About', action: () => alert('Real Estate Analysis Tool v3.0\n\nBuilt with React, TypeScript, and Tailwind CSS\n\n© 2026 All Rights Reserved') },
   ];
 
   const renderMenuItem = (item: MenuItem, index: number) => {
