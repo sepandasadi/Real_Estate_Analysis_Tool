@@ -5,9 +5,9 @@
  *
  * This adapter bridges the shared-core functions with Web App platform APIs.
  * It provides platform-specific implementations for:
- * - HTTP Client (fetch API)
+ * - HTTP Client (fetch API with header-based usage tracking)
  * - Cache Manager (localStorage/IndexedDB)
- * - Quota Manager (localStorage)
+ * - Quota Manager (header-based tracking)
  * - Logger (console)
  *
  * @module web-app/src/adapters/coreAdapter
@@ -25,6 +25,7 @@ interface HttpResponse {
   headers: Record<string, string>;
   success: boolean;
   error?: string;
+  usage?: RapidAPIUsage;
 }
 
 interface HttpOptions {
@@ -36,17 +37,28 @@ interface HttpOptions {
 interface APIKeys {
   RAPIDAPI_KEY?: string;
   GEMINI_API_KEY?: string;
-  BRIDGE_API_KEY?: string;
-  BRIDGE_BASE_URL?: string;
+}
+
+interface RapidAPIUsage {
+  limit: number;
+  remaining: number;
+  used: number;
+  percentage: number;
+  timestamp: string;
+}
+
+interface APIUsageCache {
+  private_zillow?: RapidAPIUsage;
+  us_real_estate?: RapidAPIUsage;
+  redfin?: RapidAPIUsage;
+  gemini?: RapidAPIUsage;
 }
 
 interface QuotaLimits {
-  ZILLOW_MONTHLY_LIMIT: number;
-  ZILLOW_THRESHOLD: number;
+  PRIVATE_ZILLOW_MONTHLY_LIMIT: number;
   US_REAL_ESTATE_MONTHLY_LIMIT: number;
-  US_REAL_ESTATE_THRESHOLD: number;
+  REDFIN_MONTHLY_LIMIT: number;
   GEMINI_DAILY_LIMIT: number;
-  GEMINI_THRESHOLD: number;
 }
 
 interface LastSuccess {
@@ -67,20 +79,124 @@ interface PlatformInfo {
 
 /**
  * ===============================
+ * API BASE URLS
+ * ===============================
+ */
+
+const API_BASE_URLS = {
+  PRIVATE_ZILLOW: 'https://private-zillow.p.rapidapi.com',
+  REDFIN: 'https://redfin-base-us.p.rapidapi.com',
+  US_REAL_ESTATE: 'https://us-real-estate.p.rapidapi.com',
+  GEMINI: 'https://generativelanguage.googleapis.com',
+};
+
+/**
+ * ===============================
  * HTTP CLIENT ADAPTER
  * ===============================
  */
 
 /**
  * HTTP Client for Web App
- * Wraps fetch API to provide consistent interface
+ * Wraps fetch API with header-based usage tracking
  */
 export const HttpClient = {
+  /**
+   * Extract usage data from RapidAPI response headers
+   * @param headers - Response headers
+   * @returns Usage data or null
+   */
+  extractUsageFromHeaders(headers: Record<string, string>): RapidAPIUsage | null {
+    // RapidAPI may use different header formats, so we check for multiple variations
+    const headerVariations = {
+      limit: [
+        'x-ratelimit-requests-limit',
+        'x-rapidapi-requests-limit',
+        'x-ratelimit-limit',
+        'ratelimit-limit'
+      ],
+      remaining: [
+        'x-ratelimit-requests-remaining',
+        'x-rapidapi-requests-remaining',
+        'x-ratelimit-remaining',
+        'ratelimit-remaining'
+      ]
+    };
+
+    // Find the limit header
+    let limitKey: string | undefined;
+    for (const variant of headerVariations.limit) {
+      limitKey = Object.keys(headers).find((k) => k.toLowerCase() === variant);
+      if (limitKey) break;
+    }
+
+    // Find the remaining header
+    let remainingKey: string | undefined;
+    for (const variant of headerVariations.remaining) {
+      remainingKey = Object.keys(headers).find((k) => k.toLowerCase() === variant);
+      if (remainingKey) break;
+    }
+
+    // Log what headers we found (for debugging)
+    console.log('[HttpClient] Response headers:', Object.keys(headers));
+
+    if (!limitKey || !remainingKey) {
+      console.log('[HttpClient] Rate limit headers not found. Expected one of:', headerVariations);
+      return null;
+    }
+
+    const limit = parseInt(headers[limitKey]);
+    const remaining = parseInt(headers[remainingKey]);
+
+    if (isNaN(limit) || isNaN(remaining)) {
+      console.log('[HttpClient] Invalid rate limit values:', { limit: headers[limitKey], remaining: headers[remainingKey] });
+      return null;
+    }
+
+    console.log('[HttpClient] Extracted usage:', { limit, remaining, used: limit - remaining });
+
+    return {
+      limit,
+      remaining,
+      used: limit - remaining,
+      percentage: ((limit - remaining) / limit) * 100,
+      timestamp: new Date().toISOString(),
+    };
+  },
+
+  /**
+   * Get API name from URL
+   * @param url - Request URL
+   * @returns API name or null
+   */
+  getAPINameFromURL(url: string): string | null {
+    if (url.includes('private-zillow')) return 'private_zillow';
+    if (url.includes('redfin-base-us')) return 'redfin';
+    if (url.includes('us-real-estate')) return 'us_real_estate';
+    if (url.includes('generativelanguage')) return 'gemini';
+    return null;
+  },
+
+  /**
+   * Get quota warning message
+   * @param apiName - API name
+   * @param usage - Usage data
+   * @returns Warning message or null
+   */
+  getQuotaWarning(apiName: string, usage: RapidAPIUsage): string | null {
+    if (usage.percentage >= 95) {
+      return `CRITICAL: ${apiName} at ${usage.percentage.toFixed(1)}% (${usage.remaining}/${usage.limit} remaining)`;
+    } else if (usage.percentage >= 90) {
+      return `WARNING: ${apiName} at ${usage.percentage.toFixed(1)}% (${usage.remaining}/${usage.limit} remaining)`;
+    }
+    return null;
+  },
+
   /**
    * Make HTTP GET request
    * @param url - Request URL
    * @param options - Request options
-   * @returns Response object
+   * @returns Response object with usage data
    */
   async get(url: string, options: HttpOptions = {}): Promise<HttpResponse> {
     try {
@@ -90,12 +206,29 @@ export const HttpClient = {
       });
 
       const body = await response.text();
+      const headers = Object.fromEntries(response.headers.entries());
+
+      // Extract and cache usage data from RapidAPI headers
+      const usage = this.extractUsageFromHeaders(headers);
+      if (usage) {
+        const apiName = this.getAPINameFromURL(url);
+        if (apiName) {
+          CacheManager.set(`${apiName}_usage`, usage, 3600); // 1 hour cache
+
+          // Log warnings if approaching limits
+          const warning = this.getQuotaWarning(apiName, usage);
+          if (warning) {
+            PlatformLogger.warn(warning);
+          }
+        }
+      }
 
       return {
         statusCode: response.status,
         body,
-        headers: Object.fromEntries(response.headers.entries()),
+        headers,
         success: response.ok,
+        usage: usage ?? undefined,
       };
     } catch (error) {
       return {
@@ -112,7 +245,7 @@ export const HttpClient = {
    * Make HTTP POST request
    * @param url - Request URL
    * @param options - Request options
-   * @returns Response object
+   * @returns Response object with usage data
    */
   async post(url: string, options: HttpOptions = {}): Promise<HttpResponse> {
     try {
@@ -126,12 +259,29 @@ export const HttpClient = {
       });
 
       const body = await response.text();
+      const headers = Object.fromEntries(response.headers.entries());
+
+      // Extract and cache usage data from RapidAPI headers
+      const usage = this.extractUsageFromHeaders(headers);
+      if (usage) {
+        const apiName = this.getAPINameFromURL(url);
+        if (apiName) {
+          CacheManager.set(`${apiName}_usage`, usage, 3600); // 1 hour cache
+
+          // Log warnings if approaching limits
+          const warning = this.getQuotaWarning(apiName, usage);
+          if (warning) {
+            PlatformLogger.warn(warning);
+          }
+        }
+      }
 
       return {
         statusCode: response.status,
         body,
-        headers: Object.fromEntries(response.headers.entries()),
+        headers,
         success: response.ok,
+        usage: usage ?? undefined,
       };
     } catch (error) {
       return {
@@ -314,7 +464,7 @@ export const CacheManager = {
 
 /**
  * Quota Manager for Web App
- * Uses localStorage for quota tracking
+ * Uses header-based usage tracking from RapidAPI
  */
 export const QuotaManager = {
   /**
@@ -333,8 +483,6 @@ export const QuotaManager = {
       return {
         RAPIDAPI_KEY: import.meta.env.VITE_RAPIDAPI_KEY,
         GEMINI_API_KEY: import.meta.env.VITE_GEMINI_API_KEY,
-        BRIDGE_API_KEY: import.meta.env.VITE_BRIDGE_API_KEY,
-        BRIDGE_BASE_URL: import.meta.env.VITE_BRIDGE_BASE_URL,
       };
     } catch (error) {
       PlatformLogger.error(`Failed to get API keys: ${error}`);
@@ -358,104 +506,68 @@ export const QuotaManager = {
   },
 
   /**
-   * Get API quota limits from localStorage
+   * Get API quota reference limits
    * @returns Quota limits object
    */
   getQuotaLimits(): QuotaLimits {
-    try {
-      const stored = localStorage.getItem('quota_limits');
-      if (stored) {
-        return JSON.parse(stored);
+    return {
+      PRIVATE_ZILLOW_MONTHLY_LIMIT: 250,
+      US_REAL_ESTATE_MONTHLY_LIMIT: 300,
+      REDFIN_MONTHLY_LIMIT: 111,
+      GEMINI_DAILY_LIMIT: 1500,
+    };
+  },
+
+  /**
+   * Get cached usage data for an API (from response headers)
+   * @param apiName - API name
+   * @returns Usage data or null
+   */
+  getUsage(apiName: string): RapidAPIUsage | null {
+    return CacheManager.get(`${apiName}_usage`);
+  },
+
+  /**
+   * Check if API has quota remaining (based on cached headers)
+   * @param apiName - API name
+   * @param threshold - Percentage threshold (default: 90)
+   * @returns True if under threshold
+   */
+  hasQuotaRemaining(apiName: string, threshold: number = 90): boolean {
+    const usage = this.getUsage(apiName);
+    if (!usage) return true; // No cached data, allow call
+
+    return usage.percentage < threshold;
+  },
+
+  /**
+   * Get all API usage statistics (from cached headers)
+   * @returns Usage data for all APIs
+   */
+  getAllUsage(): APIUsageCache {
+    return {
+      private_zillow: this.getUsage('private_zillow') ?? undefined,
+      us_real_estate: this.getUsage('us_real_estate') ?? undefined,
+      redfin: this.getUsage('redfin') ?? undefined,
+      gemini: this.getUsage('gemini') ?? undefined,
+    };
+  },
+
+  /**
+   * Select best API based on priority and available quota
+   * @returns API name
+   */
+  selectBestAPI(): string {
+    const priority = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+
+    for (const apiName of priority) {
+      if (this.hasQuotaRemaining(apiName)) {
+        return apiName;
       }
-
-      // Default limits
-      return {
-        ZILLOW_MONTHLY_LIMIT: 100,
-        ZILLOW_THRESHOLD: 90,
-        US_REAL_ESTATE_MONTHLY_LIMIT: 300,
-        US_REAL_ESTATE_THRESHOLD: 270,
-        GEMINI_DAILY_LIMIT: 1500,
-        GEMINI_THRESHOLD: 1400,
-      };
-    } catch (error) {
-      PlatformLogger.error(`Failed to get quota limits: ${error}`);
-      return {
-        ZILLOW_MONTHLY_LIMIT: 100,
-        ZILLOW_THRESHOLD: 90,
-        US_REAL_ESTATE_MONTHLY_LIMIT: 300,
-        US_REAL_ESTATE_THRESHOLD: 270,
-        GEMINI_DAILY_LIMIT: 1500,
-        GEMINI_THRESHOLD: 1400,
-      };
     }
-  },
 
-  /**
-   * Set API quota limits in localStorage
-   * @param limits - Quota limits object
-   * @returns Success status
-   */
-  setQuotaLimits(limits: QuotaLimits): boolean {
-    try {
-      localStorage.setItem('quota_limits', JSON.stringify(limits));
-      return true;
-    } catch (error) {
-      PlatformLogger.error(`Failed to set quota limits: ${error}`);
-      return false;
-    }
-  },
-
-  /**
-   * Get current API usage
-   * @param apiName - API name (zillow, us_real_estate, gemini)
-   * @param periodKey - Period key (e.g., "2025-11" for month)
-   * @returns Current usage count
-   */
-  getUsage(apiName: string, periodKey: string): number {
-    try {
-      const usageKey = `api_usage_${apiName}_${periodKey}`;
-      const usage = localStorage.getItem(usageKey);
-      return parseInt(usage || '0', 10);
-    } catch (error) {
-      PlatformLogger.error(`Failed to get usage: ${error}`);
-      return 0;
-    }
-  },
-
-  /**
-   * Set API usage
-   * @param apiName - API name
-   * @param periodKey - Period key
-   * @param usage - Usage count
-   * @returns Success status
-   */
-  setUsage(apiName: string, periodKey: string, usage: number): boolean {
-    try {
-      const usageKey = `api_usage_${apiName}_${periodKey}`;
-      localStorage.setItem(usageKey, usage.toString());
-      return true;
-    } catch (error) {
-      PlatformLogger.error(`Failed to set usage: ${error}`);
-      return false;
-    }
-  },
-
-  /**
-   * Increment API usage
-   * @param apiName - API name
-   * @param periodKey - Period key
-   * @returns New usage count
-   */
-  incrementUsage(apiName: string, periodKey: string): number {
-    try {
-      const currentUsage = this.getUsage(apiName, periodKey);
-      const newUsage = currentUsage + 1;
-      this.setUsage(apiName, periodKey, newUsage);
-      return newUsage;
-    } catch (error) {
-      PlatformLogger.error(`Failed to increment usage: ${error}`);
-      return 0;
-    }
+    // All exhausted, return gemini as last resort
+    return 'gemini';
   },
 
   /**
@@ -624,7 +736,7 @@ export function safeJSONStringify(data: any, defaultValue: string = '{}'): strin
 export function getPlatformInfo(): PlatformInfo {
   return {
     platform: 'web-app',
-    version: '1.0.0',
+    version: '2.0.0',
     capabilities: {
       http: true,
       cache: true,
@@ -632,4 +744,12 @@ export function getPlatformInfo(): PlatformInfo {
       storage: true,
     },
   };
+}
+
+/**
+ * Get API base URLs
+ * @returns API base URLs
+ */
+export function getAPIBaseURLs() {
+  return API_BASE_URLS;
 }

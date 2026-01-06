@@ -21,16 +21,60 @@
 
 /**
  * HTTP Client for Google Apps Script
- * Wraps UrlFetchApp to provide consistent interface
+ * Wraps UrlFetchApp with header-based usage tracking
  */
 var HttpClient = {
+  /**
+   * Extract usage data from RapidAPI response headers
+   * @param {Object} headers - Response headers
+   * @returns {Object|null} Usage data or null
+   */
+  extractUsageFromHeaders: function(headers) {
+    if (!headers) return null;
+
+    var limit = headers['X-RapidAPI-Requests-Limit'] || headers['x-rapidapi-requests-limit'];
+    var remaining = headers['X-RapidAPI-Requests-Remaining'] || headers['x-rapidapi-requests-remaining'];
+
+    if (!limit || !remaining) return null;
+
+    var limitNum = parseInt(limit);
+    var remainingNum = parseInt(remaining);
+
+    if (isNaN(limitNum) || isNaN(remainingNum)) return null;
+
+    return {
+      limit: limitNum,
+      remaining: remainingNum,
+      used: limitNum - remainingNum,
+      percentage: ((limitNum - remainingNum) / limitNum) * 100,
+      timestamp: new Date().toISOString()
+    };
+  },
+
+  /**
+   * Get API name from URL
+   * @param {string} url - Request URL
+   * @returns {string|null} API name or null
+   */
+  getAPINameFromURL: function(url) {
+    if (url.indexOf('private-zillow') !== -1) return 'private_zillow';
+    if (url.indexOf('redfin-base-us') !== -1) return 'redfin';
+    if (url.indexOf('us-real-estate') !== -1) return 'us_real_estate';
+    if (url.indexOf('generativelanguage') !== -1) return 'gemini';
+    return null;
+  },
+
   /**
    * Make HTTP GET request
    * @param {string} url - Request URL
    * @param {Object} options - Request options
-   * @returns {Object} Response object { statusCode, body, headers }
+   * @returns {Object} Response object { statusCode, body, headers, usage }
    */
   get: function(url, options) {
+    // #region agent log
+    UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:73',message:'HttpClient.get called',data:{url:url,hasOptions:!!options},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(function(){});
+    // #endregion
+
     options = options || {};
 
     var fetchOptions = {
@@ -41,14 +85,55 @@ var HttpClient = {
 
     try {
       var response = UrlFetchApp.fetch(url, fetchOptions);
+      var headers = response.getHeaders();
+
+      // #region agent log
+      var headerKeys = Object.keys(headers);
+      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:87',message:'API response received',data:{url:url,statusCode:response.getResponseCode(),headerKeys:headerKeys,hasRapidAPILimitHeader:!!(headers['X-RapidAPI-Requests-Limit']||headers['x-rapidapi-requests-limit']),hasRapidAPIRemainingHeader:!!(headers['X-RapidAPI-Requests-Remaining']||headers['x-rapidapi-requests-remaining'])},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(function(){});
+      // #endregion
+
+      // Extract and cache usage data from RapidAPI headers
+      var usage = this.extractUsageFromHeaders(headers);
+
+      // #region agent log
+      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:91',message:'Usage extraction result',data:{url:url,extractedUsage:usage,hasUsage:!!usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(function(){});
+      // #endregion
+
+      if (usage) {
+        var apiName = this.getAPINameFromURL(url);
+
+        // #region agent log
+        UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:95',message:'Attempting to cache usage',data:{url:url,apiName:apiName,usage:usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(function(){});
+        // #endregion
+
+        if (apiName) {
+          var cacheKey = apiName + '_usage';
+          var cacheValue = JSON.stringify(usage);
+          CacheService.getScriptCache().put(cacheKey, cacheValue, 3600); // 1 hour
+
+          // #region agent log
+          UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:102',message:'Usage cached',data:{apiName:apiName,cacheKey:cacheKey,usage:usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(function(){});
+          // #endregion
+
+          // Log warning if approaching limit
+          if (usage.percentage >= 90) {
+            Logger.log('WARNING: ' + apiName + ' at ' + usage.percentage.toFixed(1) + '% (' + usage.remaining + '/' + usage.limit + ' remaining)');
+          }
+        }
+      }
 
       return {
         statusCode: response.getResponseCode(),
         body: response.getContentText(),
-        headers: response.getHeaders(),
-        success: response.getResponseCode() >= 200 && response.getResponseCode() < 300
+        headers: headers,
+        success: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+        usage: usage
       };
     } catch (error) {
+      // #region agent log
+      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:119',message:'HttpClient.get error',data:{url:url,error:error.toString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(function(){});
+      // #endregion
+
       return {
         statusCode: 0,
         body: '',
@@ -63,7 +148,7 @@ var HttpClient = {
    * Make HTTP POST request
    * @param {string} url - Request URL
    * @param {Object} options - Request options
-   * @returns {Object} Response object { statusCode, body, headers }
+   * @returns {Object} Response object { statusCode, body, headers, usage }
    */
   post: function(url, options) {
     options = options || {};
@@ -78,12 +163,32 @@ var HttpClient = {
 
     try {
       var response = UrlFetchApp.fetch(url, fetchOptions);
+      var headers = response.getHeaders();
+
+      // Extract and cache usage data from RapidAPI headers
+      var usage = this.extractUsageFromHeaders(headers);
+      if (usage) {
+        var apiName = this.getAPINameFromURL(url);
+        if (apiName) {
+          CacheService.getScriptCache().put(
+            apiName + '_usage',
+            JSON.stringify(usage),
+            3600 // 1 hour
+          );
+
+          // Log warning if approaching limit
+          if (usage.percentage >= 90) {
+            Logger.log('WARNING: ' + apiName + ' at ' + usage.percentage.toFixed(1) + '% (' + usage.remaining + '/' + usage.limit + ' remaining)');
+          }
+        }
+      }
 
       return {
         statusCode: response.getResponseCode(),
         body: response.getContentText(),
-        headers: response.getHeaders(),
-        success: response.getResponseCode() >= 200 && response.getResponseCode() < 300
+        headers: headers,
+        success: response.getResponseCode() >= 200 && response.getResponseCode() < 300,
+        usage: usage
       };
     } catch (error) {
       return {
@@ -140,132 +245,6 @@ var HttpClient = {
       success: false,
       error: 'Failed after ' + maxRetries + ' attempts: ' + lastError
     };
-  }
-};
-
-/**
- * ===============================
- * CACHE MANAGER ADAPTER
- * ===============================
- */
-
-/**
- * Cache Manager for Google Apps Script
- * Wraps CacheService to provide consistent interface
- */
-var CacheManager = {
-  /**
-   * Get cached data
-   * @param {string} key - Cache key
-   * @returns {*} Cached data or null if not found/expired
-   */
-  get: function(key) {
-    try {
-      var cache = CacheService.getScriptCache();
-      var cached = cache.get(key);
-
-      if (!cached) {
-        return null;
-      }
-
-      // Parse cached data
-      var data = JSON.parse(cached);
-      return data;
-
-    } catch (error) {
-      PlatformLogger.error('Cache get error: ' + error);
-      return null;
-    }
-  },
-
-  /**
-   * Set cached data
-   * @param {string} key - Cache key
-   * @param {*} data - Data to cache
-   * @param {number} expirationInSeconds - Expiration time in seconds (max 21600 = 6 hours)
-   * @returns {boolean} Success status
-   */
-  set: function(key, data, expirationInSeconds) {
-    try {
-      var cache = CacheService.getScriptCache();
-      var serialized = JSON.stringify(data);
-
-      // CacheService has a 100KB limit per entry
-      if (serialized.length > 100000) {
-        PlatformLogger.warn('Cache data too large (' + serialized.length + ' bytes), truncating');
-
-        // If data has a comps array, truncate it
-        if (data.data && Array.isArray(data.data)) {
-          data.data = data.data.slice(0, 10);
-          serialized = JSON.stringify(data);
-        }
-      }
-
-      // Default to 6 hours (max allowed by CacheService)
-      var expiration = expirationInSeconds || 21600;
-
-      // Ensure expiration doesn't exceed 6 hours
-      if (expiration > 21600) {
-        expiration = 21600;
-      }
-
-      cache.put(key, serialized, expiration);
-      return true;
-
-    } catch (error) {
-      PlatformLogger.error('Cache set error: ' + error);
-      return false;
-    }
-  },
-
-  /**
-   * Remove cached data
-   * @param {string} key - Cache key
-   * @returns {boolean} Success status
-   */
-  remove: function(key) {
-    try {
-      var cache = CacheService.getScriptCache();
-      cache.remove(key);
-      return true;
-    } catch (error) {
-      PlatformLogger.error('Cache remove error: ' + error);
-      return false;
-    }
-  },
-
-  /**
-   * Clear all cache entries matching prefix
-   * @param {string} prefix - Key prefix to match
-   * @returns {boolean} Success status
-   */
-  clearByPrefix: function(prefix) {
-    try {
-      var cache = CacheService.getScriptCache();
-      // Note: CacheService doesn't support prefix-based removal
-      // This is a limitation of the platform
-      // For now, we'll just log a warning
-      PlatformLogger.warn('CacheService does not support prefix-based removal');
-      return false;
-    } catch (error) {
-      PlatformLogger.error('Cache clear error: ' + error);
-      return false;
-    }
-  },
-
-  /**
-   * Check if cache entry exists
-   * @param {string} key - Cache key
-   * @returns {boolean} True if exists
-   */
-  has: function(key) {
-    try {
-      var cache = CacheService.getScriptCache();
-      var cached = cache.get(key);
-      return cached !== null;
-    } catch (error) {
-      return false;
-    }
   }
 };
 

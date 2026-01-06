@@ -56,6 +56,9 @@ function doPost(e) {
       case 'getApiUsage':
         result = handleGetApiUsage();
         break;
+      case 'diagnostics':
+        result = handleDiagnostics();
+        break;
       default:
         throw new Error(`Unknown action: ${action}`);
     }
@@ -340,43 +343,159 @@ function handleCalculateRental(data) {
 
 /**
  * Handle API usage request
+ * UPDATED: Returns real-time usage from cached RapidAPI response headers
  */
 function handleGetApiUsage() {
-  const scriptProperties = PropertiesService.getScriptProperties();
+  const cache = CacheService.getScriptCache();
 
-  // Get current month/day
-  const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const currentDay = now.toISOString().split('T')[0];
+  // Expected limits (from your RapidAPI subscriptions)
+  const EXPECTED_LIMITS = {
+    privateZillow: 250,
+    usRealEstate: 300,
+    redfin: 111,
+    gemini: 1500
+  };
 
-  // Get usage data
-  const zillowUsage = parseInt(scriptProperties.getProperty(`api_usage_zillow_${currentMonth}`) || '0');
-  const usRealEstateUsage = parseInt(scriptProperties.getProperty(`api_usage_usrealestate_${currentMonth}`) || '0');
-  const geminiUsage = parseInt(scriptProperties.getProperty(`api_usage_gemini_${currentDay}`) || '0');
+  // Get cached usage from response headers (populated by makeRapidAPICall)
+  const privateZillowUsage = JSON.parse(cache.get('private_zillow_usage') || 'null');
+  const usRealEstateUsage = JSON.parse(cache.get('us_real_estate_usage') || 'null');
+  const redfinUsage = JSON.parse(cache.get('redfin_usage') || 'null');
+  const geminiUsage = JSON.parse(cache.get('gemini_usage') || 'null');
+
+  // DIAGNOSTIC: Log what's actually in cache
+  Logger.log('===== CACHE DIAGNOSTICS =====');
+  Logger.log('private_zillow_usage: ' + (privateZillowUsage ? JSON.stringify(privateZillowUsage) : 'NULL'));
+  Logger.log('us_real_estate_usage: ' + (usRealEstateUsage ? JSON.stringify(usRealEstateUsage) : 'NULL'));
+  Logger.log('redfin_usage: ' + (redfinUsage ? JSON.stringify(redfinUsage) : 'NULL'));
+  Logger.log('gemini_usage: ' + (geminiUsage ? JSON.stringify(geminiUsage) : 'NULL'));
+  Logger.log('============================');
+
+  // Helper function to validate and correct limits
+  function validateUsage(cachedData, expectedLimit) {
+    if (!cachedData) return null;
+
+    // If cached limit doesn't match expected, recalculate
+    if (cachedData.limit !== expectedLimit) {
+      Logger.log(`⚠️ Cached limit (${cachedData.limit}) doesn't match expected (${expectedLimit}), using cached usage with correct limit`);
+      return {
+        used: cachedData.used || 0,
+        limit: expectedLimit,
+        remaining: expectedLimit - (cachedData.used || 0)
+      };
+    }
+
+    return cachedData;
+  }
+
+  const validatedPrivateZillow = validateUsage(privateZillowUsage, EXPECTED_LIMITS.privateZillow);
+  const validatedUsRealEstate = validateUsage(usRealEstateUsage, EXPECTED_LIMITS.usRealEstate);
+  const validatedRedfin = validateUsage(redfinUsage, EXPECTED_LIMITS.redfin);
+  const validatedGemini = validateUsage(geminiUsage, EXPECTED_LIMITS.gemini);
 
   return {
-    zillow: {
-      used: zillowUsage,
-      limit: 100,
-      remaining: 100 - zillowUsage,
-      period: 'monthly',
-      resetDate: getMonthEndDate()
-    },
-    usRealEstate: {
-      used: usRealEstateUsage,
-      limit: 100,
-      remaining: 100 - usRealEstateUsage,
-      period: 'monthly',
-      resetDate: getMonthEndDate()
-    },
-    gemini: {
-      used: geminiUsage,
-      limit: 1500,
-      remaining: 1500 - geminiUsage,
-      period: 'daily',
-      resetDate: getTomorrowDate()
-    }
+    privateZillow: validatedPrivateZillow
+      ? {
+          used: validatedPrivateZillow.used,
+          limit: validatedPrivateZillow.limit,
+          remaining: validatedPrivateZillow.remaining,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        }
+      : {
+          used: 0,
+          limit: EXPECTED_LIMITS.privateZillow,
+          remaining: EXPECTED_LIMITS.privateZillow,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        },
+    usRealEstate: validatedUsRealEstate
+      ? {
+          used: validatedUsRealEstate.used,
+          limit: validatedUsRealEstate.limit,
+          remaining: validatedUsRealEstate.remaining,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        }
+      : {
+          used: 0,
+          limit: EXPECTED_LIMITS.usRealEstate,
+          remaining: EXPECTED_LIMITS.usRealEstate,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        },
+    redfin: validatedRedfin
+      ? {
+          used: validatedRedfin.used,
+          limit: validatedRedfin.limit,
+          remaining: validatedRedfin.remaining,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        }
+      : {
+          used: 0,
+          limit: EXPECTED_LIMITS.redfin,
+          remaining: EXPECTED_LIMITS.redfin,
+          period: 'month',
+          resetDate: getMonthEndDate()
+        },
+    gemini: validatedGemini
+      ? {
+          used: validatedGemini.used,
+          limit: validatedGemini.limit,
+          remaining: validatedGemini.remaining,
+          period: 'day',
+          resetDate: getTomorrowDate()
+        }
+      : {
+          used: 0,
+          limit: EXPECTED_LIMITS.gemini,
+          remaining: EXPECTED_LIMITS.gemini,
+          period: 'day',
+          resetDate: getTomorrowDate()
+        }
   };
+}
+
+/**
+ * Clear cached API usage data (useful for resetting or fixing corrupted cache)
+ * Run this from: Script Editor > Run > clearApiUsageCache
+ */
+function clearApiUsageCache() {
+  const cache = CacheService.getScriptCache();
+  cache.remove('private_zillow_usage');
+  cache.remove('us_real_estate_usage');
+  cache.remove('redfin_usage');
+  cache.remove('gemini_usage');
+  Logger.log('✅ API usage cache cleared. Next API call will populate fresh data.');
+}
+
+/**
+ * DIAGNOSTIC: Check what's actually in the cache
+ */
+function handleDiagnostics() {
+  try {
+    const cache = CacheService.getScriptCache();
+
+    // Try to get all usage cache keys
+    const privateZillow = cache.get('private_zillow_usage');
+    const usRealEstate = cache.get('us_real_estate_usage');
+    const redfin = cache.get('redfin_usage');
+    const gemini = cache.get('gemini_usage');
+
+    return {
+      cacheContents: {
+        private_zillow_usage: privateZillow ? JSON.parse(privateZillow) : null,
+        us_real_estate_usage: usRealEstate ? JSON.parse(usRealEstate) : null,
+        redfin_usage: redfin ? JSON.parse(redfin) : null,
+        gemini_usage: gemini ? JSON.parse(gemini) : null
+      },
+      timestamp: new Date().toISOString(),
+      note: 'This shows what is actually stored in the backend cache'
+    };
+  } catch (error) {
+    Logger.log('Diagnostics error: ' + error);
+    throw new Error('Diagnostics failed: ' + error.message);
+  }
 }
 
 /**

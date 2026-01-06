@@ -1,8 +1,8 @@
 # 🏗️ Shared Core Library
 
-**Version:** 1.0.0
-**Status:** In Development
-**Last Updated:** November 16, 2025
+**Version:** 2.0.0
+**Status:** Production
+**Last Updated:** January 5, 2026
 
 ---
 
@@ -28,20 +28,22 @@ The **Shared Core Library** is the single source of truth for all business logic
 shared-core/
 ├── api/                      # External API integrations
 │   ├── endpoints.js          # API endpoint definitions
-│   ├── zillow.js             # Zillow API functions
+│   ├── privateZillow.js      # Private Zillow API functions
+│   ├── redfin.js             # Redfin Base US API functions
 │   ├── usRealEstate.js       # US Real Estate API functions
-│   ├── gemini.js             # Gemini AI API functions
-│   └── bridge.js             # Bridge Dataset API functions
+│   ├── gemini.js             # Gemini AI API functions (fallback)
+│   └── ENDPOINT_DISCOVERY.md # Endpoint testing documentation
 ├── calculations/             # Business logic & calculations
 │   ├── arv.js                # ARV calculation algorithms
 │   ├── comps.js              # Comps filtering & scoring
 │   ├── rental.js             # Rental analysis calculations
-│   └── flip.js               # Flip analysis calculations
+│   ├── flip.js               # Flip analysis calculations
+│   └── location.js           # Location-based calculations
 ├── utils/                    # Utility functions
 │   ├── cache.js              # Caching logic
-│   ├── quota.js              # API quota management
-│   ├── validation.js         # Data validation
-│   └── formatting.js         # Data formatting
+│   ├── quota.js              # API quota reference limits
+│   ├── usageTracking.js      # Header-based usage tracking
+│   └── validation.js         # Data validation
 └── types/                    # Type definitions
     └── index.js              # Shared type definitions
 ```
@@ -368,17 +370,29 @@ npm run build
 
 ### API Functions (`api/`)
 
-- **zillow.js** - Zillow API integration
-  - `fetchZillowZestimate(zpid)` - Get Zestimate value
-  - `fetchZillowPropertyComps(zpid)` - Get curated comps
-  - `fetchPriceAndTaxHistory(zpid)` - Get historical data
-  - `fetchWalkAndTransitScore(zpid)` - Get walkability scores
+- **privateZillow.js** - Private Zillow API integration (Priority 1)
+  - `fetchPrivateZillowZestimate(zpid)` - Get Zestimate value
+  - `fetchPrivateZillowPropertyComps(zpid)` - Get AI-matched comps
+  - `fetchPrivateZillowPriceHistory(zpid)` - Get historical data
+  - `fetchPrivateZillowWalkScore(zpid)` - Get walkability scores
+  - `fetchPrivateZillowRentEstimate(zpid)` - Get rent estimates
 
-- **usRealEstate.js** - US Real Estate API integration
+- **usRealEstate.js** - US Real Estate API integration (Priority 2)
   - `fetchUSRealEstateHomeEstimate(address, city, state, zip)` - Get home estimate
   - `fetchUSRealEstateSimilarHomes(address, city, state, zip)` - Get similar properties
-  - `fetchSchools(location)` - Get school ratings
-  - `fetchNoiseScore(location)` - Get noise levels
+  - `fetchUSRealEstateSoldHomes(city, state, filters)` - Get sold homes with filters
+  - `fetchSchools(city, state, zip)` - Get school ratings
+  - `fetchNoiseScore(city, state, zip)` - Get noise levels
+
+- **redfin.js** - Redfin Base US API integration (Priority 3)
+  - `fetchRedfinPropertyDetails(address, city, state, zip)` - Get property details
+  - `fetchRedfinComps(address, city, state, zip)` - Get comparable properties
+  - `fetchRedfinSoldHomes(city, state, filters)` - Get sold homes
+  - `fetchRedfinForRent(city, state, filters)` - Get rental comps
+
+- **gemini.js** - Gemini AI fallback (Priority 4)
+  - `fetchCompsFromGemini(address, city, state, zip)` - AI-generated comps
+  - `fetchRentalCompsFromGemini(address, city, state, zip)` - AI-generated rentals
 
 ### Calculation Functions (`calculations/`)
 
@@ -394,15 +408,16 @@ npm run build
 
 ### Utility Functions (`utils/`)
 
-- **cache.js** - Caching logic
-  - `getCachedData(key)` - Retrieve cached data
-  - `setCachedData(key, data, cacheType)` - Store with expiration
-  - `clearCache(key)` - Invalidate cache
+- **quota.js** - API quota reference limits
+  - `getAPIQuotaLimit(apiName, period)` - Get quota limit
+  - `getAPIPriority()` - Get API priority order
+  - `isValidAPIName(apiName)` - Validate API name
 
-- **quota.js** - API quota management
-  - `checkQuotaAvailable(apiName, period)` - Check if quota available
-  - `trackAPIUsage(source, success)` - Track API calls
-  - `getQuotaStatus()` - Get current usage
+- **usageTracking.js** - Header-based usage tracking
+  - `extractRapidAPIUsage(headers)` - Extract usage from response headers
+  - `hasQuotaRemaining(usage, threshold)` - Check quota availability
+  - `getQuotaWarning(apiName, usage)` - Get warning message
+  - `getAPINameFromURL(url)` - Determine API from URL
 
 ---
 
@@ -441,6 +456,15 @@ Same as parent project
 
 ---
 
-**Last Updated:** November 16, 2025
-**Version:** 1.0.0
-**Status:** In Development
+**Last Updated:** January 5, 2026
+**Version:** 2.0.0
+**Status:** Production
+
+## Recent Changes (v2.0.0)
+
+- ✅ Migrated from old Zillow API to Private Zillow (250/month)
+- ✅ Added Redfin Base US API integration (111/month)
+- ✅ Removed Bridge API (deprecated)
+- ✅ Implemented header-based real-time usage tracking
+- ✅ Updated API priority order (quality-based)
+- ✅ Enhanced data source quality scoring

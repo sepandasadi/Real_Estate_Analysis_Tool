@@ -230,7 +230,6 @@ function runQuickDiagnostic() {
   try {
     PlatformLogger.info("\n1. Checking adapters...");
     if (typeof HttpClient !== 'undefined' &&
-        typeof CacheManager !== 'undefined' &&
         typeof QuotaManager !== 'undefined' &&
         typeof PlatformLogger !== 'undefined') {
       PlatformLogger.success("✅ All adapters available");
@@ -295,28 +294,6 @@ function runQuickDiagnostic() {
     }
   } catch (e) {
     PlatformLogger.error("❌ Function check failed: " + e);
-    failed++;
-  }
-
-  // Test 5: Cache working
-  try {
-    PlatformLogger.info("\n5. Checking cache...");
-    const testKey = 'diagnostic_test';
-    const testData = { test: 'data' };
-
-    CacheManager.set(testKey, testData, 60);
-    const retrieved = CacheManager.get(testKey);
-
-    if (retrieved && retrieved.test === 'data') {
-      PlatformLogger.success("✅ Cache working");
-      CacheManager.remove(testKey);
-      passed++;
-    } else {
-      PlatformLogger.error("❌ Cache not working");
-      failed++;
-    }
-  } catch (e) {
-    PlatformLogger.error("❌ Cache check failed: " + e);
     failed++;
   }
 
