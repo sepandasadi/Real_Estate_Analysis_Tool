@@ -117,6 +117,26 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
       newErrors.purchasePrice = 'Purchase price must be greater than 0';
     }
 
+    // Basic Mode: Property details are required
+    if (formData.analysisMode === 'BASIC') {
+      if (!formData.beds || formData.beds <= 0) {
+        newErrors.beds = 'Number of beds is required in Basic Mode';
+      }
+      if (!formData.baths || formData.baths <= 0) {
+        newErrors.baths = 'Number of baths is required in Basic Mode';
+      }
+      if (!formData.sqft || formData.sqft <= 0) {
+        newErrors.sqft = 'Square footage is required in Basic Mode';
+      }
+      if (!formData.yearBuilt || formData.yearBuilt < 1800 || formData.yearBuilt > new Date().getFullYear()) {
+        newErrors.yearBuilt = 'Valid year built is required in Basic Mode';
+      }
+      // ARV is required in Basic Mode for flip analysis
+      if ((analysisType === 'flip' || analysisType === 'both') && (!formData.arv || formData.arv <= 0)) {
+        newErrors.arv = 'ARV is required in Basic Mode for flip analysis';
+      }
+    }
+
     // Analysis-specific validation
     if (analysisType === 'flip' || analysisType === 'both') {
       if (!formData.rehabCost && formData.rehabCost !== 0) {

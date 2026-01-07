@@ -58,12 +58,21 @@ function checkQuotaAvailable(apiName, period = 'month') {
   const limitKey = `${apiName.toUpperCase()}_${period.toUpperCase()}_LIMIT`;
   const thresholdKey = `${apiName.toUpperCase()}_THRESHOLD`;
   const limit = quotas[limitKey] || 100;
-  const threshold = quotas[thresholdKey] || (limit * 0.9);
+  
+  // Use specific threshold if set, otherwise calculate from global threshold percentage (default 90%)
+  const thresholdPercent = quotas.THRESHOLD_PERCENT || 0.9;
+  const threshold = quotas[thresholdKey] || Math.floor(limit * thresholdPercent);
 
   // Check if under threshold
   const available = currentUsage < threshold;
-
-  PlatformLogger.logQuota(apiName, currentUsage, limit, available);
+  
+  // Enhanced logging with percentage
+  const usagePercent = limit > 0 ? Math.round((currentUsage / limit) * 100) : 0;
+  PlatformLogger.info(
+    `📊 ${apiName}: ${currentUsage}/${limit} (${usagePercent}%) | ` +
+    `Threshold: ${threshold} (${Math.round(thresholdPercent * 100)}%) | ` +
+    `Status: ${available ? '✅ Available' : '⚠️ Threshold Exceeded'}`
+  );
 
   return available;
 }
