@@ -6,11 +6,11 @@
 import { PropertyFormData } from '../types/property';
 import { ApiResponse, ApiUsageData } from './api';
 
-// Initial usage data
+// Initial usage data (updated with real API usage from testing)
 const INITIAL_USAGE = {
-  privateZillow: { used: 42, limit: 250, remaining: 208 },
-  usRealEstate: { used: 87, limit: 300, remaining: 213 },
-  redfin: { used: 23, limit: 111, remaining: 88 },
+  privateZillow: { used: 3, limit: 250, remaining: 247 },
+  usRealEstate: { used: 32, limit: 300, remaining: 268 },
+  redfin: { used: 1, limit: 111, remaining: 110 },
   gemini: { used: 312, limit: 1500, remaining: 1188 }
 };
 

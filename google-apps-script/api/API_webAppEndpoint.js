@@ -197,113 +197,6 @@ function handleAnalyze(data) {
 }
 
 /**
- * Legacy full property analysis (kept for backward compatibility)
- * This is now called by analyzePropertyStandardMode
- */
-function handleAnalyzeLegacy(data) {
-  // Step 1: Fetch property details (beds, baths, sqft)
-  Logger.log("📋 Step 1: Fetching property details...");
-  const propertyDetails = fetchPropertyDetails(data);
-
-  // Step 2: Calculate closing costs automatically (2.5% of purchase price)
-  Logger.log("💰 Step 2: Calculating closing costs...");
-  data.closingCosts = data.purchasePrice * 0.025;
-
-  // Step 3: Fetch comps with property details for filtering
-  Logger.log("🏘️ Step 3: Fetching comparable properties...");
-  const comps = fetchCompsData(data, false);
-
-  // Step 4: Calculate multi-source ARV with Phase 1 & 2 enhancements
-  Logger.log("📊 Step 4: Calculating multi-source ARV...");
-  const arvData = calculateMultiSourceARV(comps, propertyDetails, data.purchasePrice, data);
-  data.arv = arvData.arv;
-  data.arvMethod = arvData.arvMethod;
-  data.arvSources = arvData.arvSources;
-
-  // Step 5: Calculate rental estimates automatically
-  Logger.log("🏠 Step 5: Calculating rental estimates...");
-  const rentalEstimates = calculateRentalEstimates(data, propertyDetails, comps);
-
-  // Merge rental estimates into data
-  data.monthlyRent = rentalEstimates.monthlyRent;
-  data.propertyTax = rentalEstimates.propertyTax;
-  data.insurance = rentalEstimates.insurance;
-  data.hoaFees = rentalEstimates.hoaFees;
-  data.maintenance = rentalEstimates.maintenance;
-  data.vacancy = rentalEstimates.vacancy;
-
-  // Step 6: Calculate flip analysis with ARV metadata
-  Logger.log("🔨 Step 6: Calculating flip analysis...");
-  const flipAnalysis = calculateFlipAnalysis(data);
-
-  // Add Phase 1 & 2 fields to flip analysis
-  flipAnalysis.arvMethod = data.arvMethod;
-  flipAnalysis.arvSources = data.arvSources;
-
-  // Step 6.5: Historical validation (Phase 2.3)
-  Logger.log("📈 Step 6.5: Validating ARV against market trends...");
-  let historicalValidation = null;
-  try {
-    const zpid = propertyDetails?.zpid;
-    const location = `${data.city}, ${data.state}`;
-
-    if (zpid) {
-      historicalValidation = validateARVAgainstMarketTrends(data.arv, zpid, location);
-      Logger.log(`✅ Historical validation: ${historicalValidation.isValid ? 'Valid' : 'Needs review'}`);
-    } else {
-      Logger.log("⚠️ No zpid available for historical validation");
-    }
-  } catch (e) {
-    Logger.log(`⚠️ Historical validation error: ${e.message}`);
-  }
-
-  flipAnalysis.historicalValidation = historicalValidation;
-
-  // Step 7: Calculate rental analysis
-  Logger.log("🏘️ Step 7: Calculating rental analysis...");
-  const rentalAnalysis = calculateRentalAnalysis(data);
-
-  // Step 8: Generate score
-  Logger.log("⭐ Step 8: Generating deal score...");
-  const score = calculateDealScore(flipAnalysis, rentalAnalysis);
-
-  // Step 9: Generate alerts
-  Logger.log("⚠️ Step 9: Generating alerts...");
-  const alerts = generateAlerts(flipAnalysis, rentalAnalysis);
-
-  // Step 10: Generate insights
-  Logger.log("💡 Step 10: Generating insights...");
-  const insights = generateInsights(flipAnalysis, rentalAnalysis, data);
-
-  Logger.log("✅ Analysis complete!");
-
-  // Enhance comps with quality scores and data sources
-  const enhancedComps = comps.map(comp => ({
-    ...comp,
-    qualityScore: comp.qualityScore || 85,
-    dataSource: comp.dataSource || 'unknown'
-  }));
-
-  return {
-    property: {
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      beds: propertyDetails.beds,
-      baths: propertyDetails.baths,
-      sqft: propertyDetails.sqft
-    },
-    comps: enhancedComps,
-    flip: flipAnalysis,
-    rental: rentalAnalysis,
-    score: score,
-    alerts: alerts,
-    insights: insights
-  };
-}
-
-/**
  * Handle fetch comps request
  */
 function handleFetchComps(data) {
@@ -343,116 +236,114 @@ function handleCalculateRental(data) {
 
 /**
  * Handle API usage request
- * UPDATED: Returns real-time usage from cached RapidAPI response headers
+ * Makes lightweight API calls to get fresh usage data from headers
  */
 function handleGetApiUsage() {
-  const cache = CacheService.getScriptCache();
+  const apiKeys = getApiKeys();
 
-  // Expected limits (from your RapidAPI subscriptions)
-  const EXPECTED_LIMITS = {
-    privateZillow: 250,
-    usRealEstate: 300,
-    redfin: 111,
-    gemini: 1500
+  // Make lightweight API calls to get fresh headers
+  const usage = {
+    privateZillow: null,
+    usRealEstate: null,
+    redfin: null,
+    gemini: null
   };
 
-  // Get cached usage from response headers (populated by makeRapidAPICall)
-  const privateZillowUsage = JSON.parse(cache.get('private_zillow_usage') || 'null');
-  const usRealEstateUsage = JSON.parse(cache.get('us_real_estate_usage') || 'null');
-  const redfinUsage = JSON.parse(cache.get('redfin_usage') || 'null');
-  const geminiUsage = JSON.parse(cache.get('gemini_usage') || 'null');
-
-  // DIAGNOSTIC: Log what's actually in cache
-  Logger.log('===== CACHE DIAGNOSTICS =====');
-  Logger.log('private_zillow_usage: ' + (privateZillowUsage ? JSON.stringify(privateZillowUsage) : 'NULL'));
-  Logger.log('us_real_estate_usage: ' + (usRealEstateUsage ? JSON.stringify(usRealEstateUsage) : 'NULL'));
-  Logger.log('redfin_usage: ' + (redfinUsage ? JSON.stringify(redfinUsage) : 'NULL'));
-  Logger.log('gemini_usage: ' + (geminiUsage ? JSON.stringify(geminiUsage) : 'NULL'));
-  Logger.log('============================');
-
-  // Helper function to validate and correct limits
-  function validateUsage(cachedData, expectedLimit) {
-    if (!cachedData) return null;
-
-    // If cached limit doesn't match expected, recalculate
-    if (cachedData.limit !== expectedLimit) {
-      Logger.log(`⚠️ Cached limit (${cachedData.limit}) doesn't match expected (${expectedLimit}), using cached usage with correct limit`);
-      return {
-        used: cachedData.used || 0,
-        limit: expectedLimit,
-        remaining: expectedLimit - (cachedData.used || 0)
+  // Private Zillow - lightweight property lookup
+  try {
+    const response = HttpClient.get('https://private-zillow.p.rapidapi.com/byzpid?zpid=44471319', {
+      headers: {
+        'X-RapidAPI-Key': apiKeys.RAPIDAPI_KEY,
+        'X-RapidAPI-Host': 'private-zillow.p.rapidapi.com'
+      }
+    });
+    if (response.usage) {
+      usage.privateZillow = {
+        used: response.usage.used,
+        limit: response.usage.limit,
+        remaining: response.usage.remaining,
+        period: 'month',
+        resetDate: getMonthEndDate()
       };
     }
-
-    return cachedData;
+  } catch (e) {
+    Logger.log('Failed to get Private Zillow usage: ' + e);
   }
 
-  const validatedPrivateZillow = validateUsage(privateZillowUsage, EXPECTED_LIMITS.privateZillow);
-  const validatedUsRealEstate = validateUsage(usRealEstateUsage, EXPECTED_LIMITS.usRealEstate);
-  const validatedRedfin = validateUsage(redfinUsage, EXPECTED_LIMITS.redfin);
-  const validatedGemini = validateUsage(geminiUsage, EXPECTED_LIMITS.gemini);
+  // US Real Estate - lightweight property lookup
+  try {
+    const response = HttpClient.get('https://us-real-estate.p.rapidapi.com/for-sale?city=Miami&state_code=FL&limit=1', {
+      headers: {
+        'X-RapidAPI-Key': apiKeys.RAPIDAPI_KEY,
+        'X-RapidAPI-Host': 'us-real-estate.p.rapidapi.com'
+      }
+    });
+    if (response.usage) {
+      usage.usRealEstate = {
+        used: response.usage.used,
+        limit: response.usage.limit,
+        remaining: response.usage.remaining,
+        period: 'month',
+        resetDate: getMonthEndDate()
+      };
+    }
+  } catch (e) {
+    Logger.log('Failed to get US Real Estate usage: ' + e);
+  }
+
+  // Redfin - lightweight search
+  try {
+    const response = HttpClient.get('https://redfin-base-us.p.rapidapi.com/properties/search?city=Seattle&state=WA&limit=1', {
+      headers: {
+        'X-RapidAPI-Key': apiKeys.RAPIDAPI_KEY,
+        'X-RapidAPI-Host': 'redfin-base-us.p.rapidapi.com'
+      }
+    });
+    if (response.usage) {
+      usage.redfin = {
+        used: response.usage.used,
+        limit: response.usage.limit,
+        remaining: response.usage.remaining,
+        period: 'month',
+        resetDate: getMonthEndDate()
+      };
+    }
+  } catch (e) {
+    Logger.log('Failed to get Redfin usage: ' + e);
+  }
+
+  // Gemini - no usage header, use defaults
+  usage.gemini = {
+    used: 0,
+    limit: 1500,
+    remaining: 1500,
+    period: 'day',
+    resetDate: getTomorrowDate()
+  };
 
   return {
-    privateZillow: validatedPrivateZillow
-      ? {
-          used: validatedPrivateZillow.used,
-          limit: validatedPrivateZillow.limit,
-          remaining: validatedPrivateZillow.remaining,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        }
-      : {
-          used: 0,
-          limit: EXPECTED_LIMITS.privateZillow,
-          remaining: EXPECTED_LIMITS.privateZillow,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        },
-    usRealEstate: validatedUsRealEstate
-      ? {
-          used: validatedUsRealEstate.used,
-          limit: validatedUsRealEstate.limit,
-          remaining: validatedUsRealEstate.remaining,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        }
-      : {
-          used: 0,
-          limit: EXPECTED_LIMITS.usRealEstate,
-          remaining: EXPECTED_LIMITS.usRealEstate,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        },
-    redfin: validatedRedfin
-      ? {
-          used: validatedRedfin.used,
-          limit: validatedRedfin.limit,
-          remaining: validatedRedfin.remaining,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        }
-      : {
-          used: 0,
-          limit: EXPECTED_LIMITS.redfin,
-          remaining: EXPECTED_LIMITS.redfin,
-          period: 'month',
-          resetDate: getMonthEndDate()
-        },
-    gemini: validatedGemini
-      ? {
-          used: validatedGemini.used,
-          limit: validatedGemini.limit,
-          remaining: validatedGemini.remaining,
-          period: 'day',
-          resetDate: getTomorrowDate()
-        }
-      : {
-          used: 0,
-          limit: EXPECTED_LIMITS.gemini,
-          remaining: EXPECTED_LIMITS.gemini,
-          period: 'day',
-          resetDate: getTomorrowDate()
-        }
+    privateZillow: usage.privateZillow || {
+      used: 0,
+      limit: 250,
+      remaining: 250,
+      period: 'month',
+      resetDate: getMonthEndDate()
+    },
+    usRealEstate: usage.usRealEstate || {
+      used: 0,
+      limit: 300,
+      remaining: 300,
+      period: 'month',
+      resetDate: getMonthEndDate()
+    },
+    redfin: usage.redfin || {
+      used: 0,
+      limit: 111,
+      remaining: 111,
+      period: 'month',
+      resetDate: getMonthEndDate()
+    },
+    gemini: usage.gemini
   };
 }
 

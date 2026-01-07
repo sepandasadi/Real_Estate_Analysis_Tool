@@ -32,8 +32,16 @@ var HttpClient = {
   extractUsageFromHeaders: function(headers) {
     if (!headers) return null;
 
-    var limit = headers['X-RapidAPI-Requests-Limit'] || headers['x-rapidapi-requests-limit'];
-    var remaining = headers['X-RapidAPI-Requests-Remaining'] || headers['x-rapidapi-requests-remaining'];
+    // Check for multiple header name variations (RapidAPI uses x-ratelimit-*)
+    var limit = headers['x-ratelimit-requests-limit'] ||
+                headers['X-RateLimit-Requests-Limit'] ||
+                headers['X-RapidAPI-Requests-Limit'] ||
+                headers['x-rapidapi-requests-limit'];
+
+    var remaining = headers['x-ratelimit-requests-remaining'] ||
+                    headers['X-RateLimit-Requests-Remaining'] ||
+                    headers['X-RapidAPI-Requests-Remaining'] ||
+                    headers['x-rapidapi-requests-remaining'];
 
     if (!limit || !remaining) return null;
 
@@ -71,10 +79,6 @@ var HttpClient = {
    * @returns {Object} Response object { statusCode, body, headers, usage }
    */
   get: function(url, options) {
-    // #region agent log
-    UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:73',message:'HttpClient.get called',data:{url:url,hasOptions:!!options},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,E'})}).catch(function(){});
-    // #endregion
-
     options = options || {};
 
     var fetchOptions = {
@@ -87,33 +91,16 @@ var HttpClient = {
       var response = UrlFetchApp.fetch(url, fetchOptions);
       var headers = response.getHeaders();
 
-      // #region agent log
-      var headerKeys = Object.keys(headers);
-      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:87',message:'API response received',data:{url:url,statusCode:response.getResponseCode(),headerKeys:headerKeys,hasRapidAPILimitHeader:!!(headers['X-RapidAPI-Requests-Limit']||headers['x-rapidapi-requests-limit']),hasRapidAPIRemainingHeader:!!(headers['X-RapidAPI-Requests-Remaining']||headers['x-rapidapi-requests-remaining'])},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(function(){});
-      // #endregion
-
       // Extract and cache usage data from RapidAPI headers
       var usage = this.extractUsageFromHeaders(headers);
 
-      // #region agent log
-      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:91',message:'Usage extraction result',data:{url:url,extractedUsage:usage,hasUsage:!!usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A,D'})}).catch(function(){});
-      // #endregion
-
       if (usage) {
         var apiName = this.getAPINameFromURL(url);
-
-        // #region agent log
-        UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:95',message:'Attempting to cache usage',data:{url:url,apiName:apiName,usage:usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(function(){});
-        // #endregion
 
         if (apiName) {
           var cacheKey = apiName + '_usage';
           var cacheValue = JSON.stringify(usage);
           CacheService.getScriptCache().put(cacheKey, cacheValue, 3600); // 1 hour
-
-          // #region agent log
-          UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:102',message:'Usage cached',data:{apiName:apiName,cacheKey:cacheKey,usage:usage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(function(){});
-          // #endregion
 
           // Log warning if approaching limit
           if (usage.percentage >= 90) {
@@ -130,10 +117,6 @@ var HttpClient = {
         usage: usage
       };
     } catch (error) {
-      // #region agent log
-      UrlFetchApp.fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'coreAdapter.js:119',message:'HttpClient.get error',data:{url:url,error:error.toString()},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(function(){});
-      // #endregion
-
       return {
         statusCode: 0,
         body: '',

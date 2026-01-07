@@ -498,18 +498,18 @@ export function resetMockApiUsage(): void {
   console.log('🔄 Resetting mock API usage to default values...');
 
   const correctInitialUsage = {
-    privateZillow: { used: 42, limit: 250, remaining: 208 },
-    usRealEstate: { used: 87, limit: 300, remaining: 213 },
-    redfin: { used: 23, limit: 111, remaining: 88 },
+    privateZillow: { used: 3, limit: 250, remaining: 247 },
+    usRealEstate: { used: 32, limit: 300, remaining: 268 },
+    redfin: { used: 1, limit: 111, remaining: 110 },
     gemini: { used: 312, limit: 1500, remaining: 1188 }
   };
 
   localStorage.setItem('mock_api_usage', JSON.stringify(correctInitialUsage));
 
   console.log('✅ Mock API usage reset:');
-  console.log('  • Private Zillow: 208/250');
-  console.log('  • US Real Estate: 213/300');
-  console.log('  • Redfin: 88/111');
+  console.log('  • Private Zillow: 247/250');
+  console.log('  • US Real Estate: 268/300');
+  console.log('  • Redfin: 110/111');
   console.log('  • Gemini: 1188/1500');
   console.log('');
   console.log('⚠️  IMPORTANT: Click the refresh button (🔄) in the API Usage banner');

@@ -3,13 +3,15 @@ import { PropertyHistoryEntry } from '../utils/localStorage';
 
 interface PropertyHistoryProps {
   history: PropertyHistoryEntry[];
-  onSelectProperty: (formData: PropertyHistoryEntry['formData']) => void;
+  selectedPropertyId: string | null;
+  onSelectProperty: (formData: PropertyHistoryEntry['formData'], historyId: string) => void;
   onRemoveProperty: (id: string) => void;
   onClearHistory: () => void;
 }
 
 const PropertyHistory: React.FC<PropertyHistoryProps> = ({
   history,
+  selectedPropertyId,
   onSelectProperty,
   onRemoveProperty,
   onClearHistory,
@@ -81,11 +83,17 @@ const PropertyHistory: React.FC<PropertyHistoryProps> = ({
       {isExpanded && (
         <div className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {history.map((entry) => (
+            {history.map((entry) => {
+              const isSelected = selectedPropertyId === entry.id;
+              return (
               <div
                 key={entry.id}
-                className="group relative bg-gradient-to-br from-gray-50 to-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-primary-300 transition-all cursor-pointer"
-                onClick={() => onSelectProperty(entry.formData)}
+                className={`group relative rounded-lg p-4 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-gradient-to-br from-primary-50 to-primary-100 border-2 border-primary-500 shadow-lg'
+                    : 'bg-gradient-to-br from-gray-50 to-white border border-gray-200 hover:shadow-md hover:border-primary-300'
+                }`}
+                onClick={() => onSelectProperty(entry.formData, entry.id)}
               >
                 {/* Delete Button */}
                 <button
@@ -145,10 +153,13 @@ const PropertyHistory: React.FC<PropertyHistoryProps> = ({
                   <span>{formatTimestamp(entry.timestamp)}</span>
                 </div>
 
-                {/* Hover Indicator */}
-                <div className="absolute inset-0 border-2 border-primary-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                {/* Hover Indicator (only show when not selected) */}
+                {!isSelected && (
+                  <div className="absolute inset-0 border-2 border-primary-500 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       )}

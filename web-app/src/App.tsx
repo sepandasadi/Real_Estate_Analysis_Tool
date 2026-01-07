@@ -55,6 +55,7 @@ function App() {
   const [propertyId, setPropertyId] = useState<string>('');
   const [propertyHistory, setPropertyHistory] = useState<PropertyHistoryEntry[]>([]);
   const [selectedHistoryData, setSelectedHistoryData] = useState<PropertyFormData | null>(null);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [apiUsageExpanded, setApiUsageExpanded] = useState<boolean>(true);
   const [refreshingUsage, setRefreshingUsage] = useState<boolean>(false);
 
@@ -179,10 +180,12 @@ function App() {
     setActiveTab('inputs');
     setPropertyId('');
     setSelectedHistoryData(null);
+    setSelectedHistoryId(null);
   };
 
-  const handleSelectPropertyFromHistory = (formData: PropertyFormData) => {
+  const handleSelectPropertyFromHistory = (formData: PropertyFormData, historyId: string) => {
     setSelectedHistoryData(formData);
+    setSelectedHistoryId(historyId);
     // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -580,6 +583,7 @@ function App() {
                 {/* Property History */}
                 <PropertyHistory
                   history={propertyHistory.slice(0, 6)}
+                  selectedPropertyId={selectedHistoryId}
                   onSelectProperty={handleSelectPropertyFromHistory}
                   onRemoveProperty={handleRemovePropertyFromHistory}
                   onClearHistory={handleClearHistory}
