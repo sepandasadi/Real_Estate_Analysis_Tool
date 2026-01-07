@@ -64,10 +64,6 @@ export interface ApiUsageData {
  */
 async function makeRequest<T>(action: string, data: any = {}): Promise<ApiResponse<T>> {
   try {
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:65',message:'makeRequest called',data:{action:action,apiUrl:API_URL},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G,H,I'})}).catch(()=>{});
-    // #endregion
-
     const response = await fetch(API_URL, {
       method: 'POST',
       headers: {
@@ -80,29 +76,14 @@ async function makeRequest<T>(action: string, data: any = {}): Promise<ApiRespon
       redirect: 'follow', // Important for Google Apps Script redirects
     });
 
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:84',message:'Response received',data:{action:action,status:response.status,ok:response.ok,statusText:response.statusText,url:response.url,redirected:response.redirected},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G,H,I'})}).catch(()=>{});
-    // #endregion
-
     if (!response.ok) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:89',message:'Response not OK',data:{action:action,status:response.status,statusText:response.statusText},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G'})}).catch(()=>{});
-      // #endregion
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const result = await response.json();
 
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:96',message:'JSON parsed successfully',data:{action:action,success:result.success},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'G'})}).catch(()=>{});
-    // #endregion
-
     return result;
   } catch (error) {
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'api.ts:101',message:'Request failed with error',data:{action:action,errorType:error?.constructor?.name,errorMessage:error instanceof Error ? error.message : String(error),errorStack:error instanceof Error ? error.stack : undefined},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'F,G,H,I'})}).catch(()=>{});
-    // #endregion
-
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error occurred',

@@ -106,10 +106,6 @@ function App() {
     setLoading(true);
     setError('');
 
-    // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:100',message:'Analysis started',data:{isRealApi:isRealApiConfigured,address:data.address},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,E'})}).catch(()=>{});
-    // #endregion
-
     try {
       // Generate unique property ID
       const newPropertyId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -124,10 +120,6 @@ function App() {
       const response = isRealApiConfigured
         ? await analyzeProperty(data)
         : await mockAnalyzeProperty(data);
-
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:119',message:'Analysis response received',data:{success:response.success,hasData:!!response.data,isRealApi:isRealApiConfigured},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,E'})}).catch(()=>{});
-      // #endregion
 
       if (response.success && response.data) {
         // Ensure property field exists in the response
@@ -155,34 +147,18 @@ function App() {
         // Clear selected history data
         setSelectedHistoryData(null);
 
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:146',message:'About to refresh API usage',data:{isRealApi:isRealApiConfigured,currentUsage:apiUsage},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-
         // Refresh API usage after analysis
         const usageResponse = isRealApiConfigured
           ? await getApiUsage()
           : await getMockApiUsage();
 
-        // #region agent log
-        fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:151',message:'API usage refresh response',data:{success:usageResponse.success,data:usageResponse.data,isRealApi:isRealApiConfigured},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
-
         if (usageResponse.success && usageResponse.data) {
           setApiUsage(usageResponse.data);
-
-          // #region agent log
-          fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:156',message:'API usage state updated',data:{newUsage:usageResponse.data},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
         }
       } else {
         setError(response.error || 'Analysis failed. Please try again.');
       }
     } catch (err) {
-      // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/bde32f66-859e-484d-8409-cf1887350e6d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'App.tsx:162',message:'Analysis error',data:{error:err instanceof Error ? err.message : String(err)},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
