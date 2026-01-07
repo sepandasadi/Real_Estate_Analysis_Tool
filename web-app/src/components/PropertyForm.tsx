@@ -484,11 +484,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   name="beds"
                   value={formData.beds || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-purple-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className={`w-full px-4 py-3 border bg-white rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.beds ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-purple-300 focus:ring-purple-500'
+                  }`}
                   placeholder="3"
                   min="0"
                   step="1"
                 />
+                {errors.beds && <p className="text-red-500 text-sm mt-1">{errors.beds}</p>}
               </div>
               <div>
                 <label htmlFor="baths" className="block text-sm font-medium text-gray-700 mb-1">
@@ -500,11 +503,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   name="baths"
                   value={formData.baths || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-purple-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className={`w-full px-4 py-3 border bg-white rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.baths ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-purple-300 focus:ring-purple-500'
+                  }`}
                   placeholder="2"
                   min="0"
                   step="0.5"
                 />
+                {errors.baths && <p className="text-red-500 text-sm mt-1">{errors.baths}</p>}
               </div>
               <div>
                 <label htmlFor="sqft" className="block text-sm font-medium text-gray-700 mb-1">
@@ -516,11 +522,14 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   name="sqft"
                   value={formData.sqft || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-purple-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className={`w-full px-4 py-3 border bg-white rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.sqft ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-purple-300 focus:ring-purple-500'
+                  }`}
                   placeholder="1500"
                   min="0"
                   step="100"
                 />
+                {errors.sqft && <p className="text-red-500 text-sm mt-1">{errors.sqft}</p>}
               </div>
               <div>
                 <label htmlFor="yearBuilt" className="block text-sm font-medium text-gray-700 mb-1">
@@ -532,12 +541,15 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   name="yearBuilt"
                   value={formData.yearBuilt || ''}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 border border-purple-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className={`w-full px-4 py-3 border bg-white rounded-lg focus:outline-none focus:ring-2 ${
+                    errors.yearBuilt ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-purple-300 focus:ring-purple-500'
+                  }`}
                   placeholder="2000"
                   min="1800"
                   max={new Date().getFullYear()}
                   step="1"
                 />
+                {errors.yearBuilt && <p className="text-red-500 text-sm mt-1">{errors.yearBuilt}</p>}
               </div>
             </div>
           </div>
@@ -832,7 +844,9 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   value={formData.arv || ''}
                   onChange={handleChange}
                   className={`w-full px-4 py-3 border bg-white rounded-lg focus:outline-none focus:ring-2 ${
-                    formData.analysisMode === 'BASIC'
+                    errors.arv
+                      ? 'border-red-500 bg-red-50 focus:ring-red-500'
+                      : formData.analysisMode === 'BASIC'
                       ? 'border-purple-300 focus:ring-purple-500'
                       : 'border-blue-300 focus:ring-blue-500'
                   }`}
@@ -840,6 +854,7 @@ const PropertyForm: React.FC<PropertyFormProps> = ({ onSubmit, loading = false, 
                   min="0"
                   step="1000"
                 />
+                {errors.arv && <p className="text-red-500 text-sm mt-1">{errors.arv}</p>}
                 <p className="text-xs text-gray-500 mt-1">
                   {formData.analysisMode === 'BASIC'
                     ? 'Provide your estimated ARV or use comps below'

@@ -268,37 +268,37 @@ var QuotaManager = {
   getQuotaLimits: function() {
     try {
       var props = PropertiesService.getScriptProperties();
-      
+
       // Global threshold percentage (default 90%)
       // Can be changed in Script Properties: QUOTA_THRESHOLD_PERCENT = 85 (for 85%)
       var thresholdPercent = parseFloat(props.getProperty('QUOTA_THRESHOLD_PERCENT') || '90') / 100;
-      
+
       // API Limits
       var privateZillowLimit = parseInt(props.getProperty('PRIVATE_ZILLOW_MONTHLY_LIMIT') || '250');
       var usRealEstateLimit = parseInt(props.getProperty('US_REAL_ESTATE_MONTHLY_LIMIT') || '300');
       var redfinLimit = parseInt(props.getProperty('REDFIN_MONTHLY_LIMIT') || '111');
       var geminiLimit = parseInt(props.getProperty('GEMINI_DAILY_LIMIT') || '1500');
-      
+
       return {
         // Global threshold percentage
         THRESHOLD_PERCENT: thresholdPercent,
-        
+
         // Private Zillow (250/month)
         PRIVATE_ZILLOW_MONTHLY_LIMIT: privateZillowLimit,
         PRIVATE_ZILLOW_THRESHOLD: parseInt(props.getProperty('PRIVATE_ZILLOW_THRESHOLD') || Math.floor(privateZillowLimit * thresholdPercent)),
-        
+
         // US Real Estate (300/month)
         US_REAL_ESTATE_MONTHLY_LIMIT: usRealEstateLimit,
         US_REAL_ESTATE_THRESHOLD: parseInt(props.getProperty('US_REAL_ESTATE_THRESHOLD') || Math.floor(usRealEstateLimit * thresholdPercent)),
-        
+
         // Redfin (111/month)
         REDFIN_MONTHLY_LIMIT: redfinLimit,
         REDFIN_THRESHOLD: parseInt(props.getProperty('REDFIN_THRESHOLD') || Math.floor(redfinLimit * thresholdPercent)),
-        
+
         // Gemini (1500/day)
         GEMINI_DAILY_LIMIT: geminiLimit,
         GEMINI_THRESHOLD: parseInt(props.getProperty('GEMINI_THRESHOLD') || Math.floor(geminiLimit * thresholdPercent)),
-        
+
         // Legacy (for backward compatibility)
         ZILLOW_MONTHLY_LIMIT: parseInt(props.getProperty('ZILLOW_MONTHLY_LIMIT') || '100'),
         ZILLOW_THRESHOLD: parseInt(props.getProperty('ZILLOW_THRESHOLD') || '90')

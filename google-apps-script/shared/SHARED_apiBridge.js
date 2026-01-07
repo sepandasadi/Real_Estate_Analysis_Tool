@@ -58,14 +58,14 @@ function checkQuotaAvailable(apiName, period = 'month') {
   const limitKey = `${apiName.toUpperCase()}_${period.toUpperCase()}_LIMIT`;
   const thresholdKey = `${apiName.toUpperCase()}_THRESHOLD`;
   const limit = quotas[limitKey] || 100;
-  
+
   // Use specific threshold if set, otherwise calculate from global threshold percentage (default 90%)
   const thresholdPercent = quotas.THRESHOLD_PERCENT || 0.9;
   const threshold = quotas[thresholdKey] || Math.floor(limit * thresholdPercent);
 
   // Check if under threshold
   const available = currentUsage < threshold;
-  
+
   // Enhanced logging with percentage
   const usagePercent = limit > 0 ? Math.round((currentUsage / limit) * 100) : 0;
   PlatformLogger.info(
@@ -444,8 +444,8 @@ function fetchCompsFromUSRealEstate(data) {
     return [];
   }
 
-  // Use similar homes endpoint for best comp matching
-  const url = `${US_REAL_ESTATE_BASE_URL}/for-sale/similiar-homes`;
+  // Use similar homes endpoint for best comp matching (v3)
+  const url = `${US_REAL_ESTATE_BASE_URL}/v3/for-sale/similiar-homes`;
 
   const options = {
     headers: {
@@ -832,7 +832,7 @@ function fetchUSRealEstateHomeEstimate(propertyId) {
 
   PlatformLogger.info(`🏡 Fetching US Real Estate home estimate for property_id: ${propertyId}`);
 
-  const url = `${US_REAL_ESTATE_BASE_URL}/for-sale/home-estimate-value?property_id=${encodeURIComponent(propertyId)}`;
+  const url = `${US_REAL_ESTATE_BASE_URL}/v3/for-sale/home-estimate-value?property_id=${encodeURIComponent(propertyId)}`;
 
   const options = {
     headers: {
@@ -1162,7 +1162,7 @@ function fetchZillowPropertyComps(data) {
 
 /**
  * Fetch AI-matched similar homes from US Real Estate API
- * Phase 1.4: Uses /for-sale/similiar-homes endpoint for better quality matches
+ * Phase 1.4: Uses /v3/for-sale/similiar-homes endpoint for better quality matches
  * ADDED: Phase 1.4 - AI-matched similar homes (replaces generic search)
  * MIGRATED: Phase 0.6 - Now uses HttpClient adapter
  *
@@ -1188,7 +1188,7 @@ function fetchUSRealEstateSimilarHomes(data) {
     `sort=relevance`
   ].join('&');
 
-  const url = `${US_REAL_ESTATE_BASE_URL}/for-sale/similiar-homes?${queryParams}`;
+  const url = `${US_REAL_ESTATE_BASE_URL}/v3/for-sale/similiar-homes?${queryParams}`;
 
   const options = {
     headers: {
