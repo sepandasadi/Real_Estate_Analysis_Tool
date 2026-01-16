@@ -203,80 +203,87 @@ function fetchCompsData(data, forceRefresh = false, analysisMode = null) {
 
   let comps = [];
 
-  // Priority 1: Private Zillow (250 requests/month)
-  const privateZillowQuotaAvailable = checkQuotaAvailable('private_zillow', 'month');
-  if (privateZillowQuotaAvailable) {
-    try {
-      PlatformLogger.info("🏠 Priority 1: Trying Private Zillow for comps (250/month)...");
-      comps = retryWithBackoff(() => fetchCompsFromPrivateZillow(data));
-      if (comps && comps.length > 0) {
-        PlatformLogger.success(`✅ Private Zillow SUCCESS: ${comps.length} comps`);
-        trackAPIUsage('private_zillow', true);
-        return comps;
-      }
-    } catch (err) {
-      PlatformLogger.warn(`Private Zillow comps failed: ${err.message}`);
-      trackAPIUsage('private_zillow', false);
-    }
-  } else {
-    PlatformLogger.warn("Private Zillow quota exceeded, skipping");
+  // Get API call order based on user's primary API selection
+  // Note: getAPICallOrder() now automatically filters out blocked APIs (>90% quota)
+  const apiCallOrder = QuotaManager.getAPICallOrder();
+  const primaryAPI = QuotaManager.getPrimaryAPI();
+
+  // Check if all APIs are blocked
+  if (apiCallOrder.length === 0) {
+    PlatformLogger.error('❌ All APIs blocked due to quota limits (>90%)');
+    PlatformLogger.warn('💡 Quotas reset: Private Zillow/US Real Estate/Redfin (1st of month), Gemini (midnight)');
+    PlatformLogger.warn('💡 Try using Basic Mode with manual input, or wait for quota reset');
+    return [];
   }
 
-  // Priority 2: US Real Estate (300 requests/month)
-  if (checkQuotaAvailable('us_real_estate', 'month')) {
-    try {
-      PlatformLogger.info("🔑 Priority 2: Trying US Real Estate for comps (300/month)...");
-      comps = retryWithBackoff(() => fetchCompsFromUSRealEstate(data));
-      if (comps && comps.length > 0) {
-        PlatformLogger.success(`✅ US Real Estate SUCCESS: ${comps.length} comps`);
-        trackAPIUsage('us_real_estate', true);
-        return comps;
-      }
-    } catch (err) {
-      PlatformLogger.warn(`US Real Estate comps failed: ${err.message}`);
-      trackAPIUsage('us_real_estate', false);
-    }
-  } else {
-    PlatformLogger.warn("US Real Estate quota exceeded, skipping");
-  }
+  PlatformLogger.info(`🎯 Primary API: ${primaryAPI} | Available APIs: ${apiCallOrder.join(' → ')}`);
 
-  // Priority 3: Redfin (111 requests/month)
-  if (checkQuotaAvailable('redfin', 'month')) {
-    try {
-      PlatformLogger.info("🏘️ Priority 3: Trying Redfin for comps (111/month)...");
-      comps = retryWithBackoff(() => fetchCompsFromRedfin(data));
-      if (comps && comps.length > 0) {
-        PlatformLogger.success(`✅ Redfin SUCCESS: ${comps.length} comps`);
-        trackAPIUsage('redfin', true);
-        return comps;
-      }
-    } catch (err) {
-      PlatformLogger.warn(`Redfin comps failed: ${err.message}`);
-      trackAPIUsage('redfin', false);
-    }
-  } else {
-    PlatformLogger.warn("Redfin quota exceeded, skipping");
-  }
-
-  // Priority 4: Gemini AI Fallback (1500 requests/day)
-  if (checkQuotaAvailable('gemini', 'day')) {
-    try {
-      PlatformLogger.info("🤖 Priority 4 (Fallback): Trying Gemini AI (1500/day)...");
-      const { GEMINI_API_KEY } = getApiKeys();
-      if (GEMINI_API_KEY) {
-      comps = retryWithBackoff(() => fetchCompsFromGemini(data, GEMINI_API_KEY));
-      if (comps && comps.length > 0) {
-          PlatformLogger.success(`✅ Gemini SUCCESS: ${comps.length} comps`);
-        trackAPIUsage('gemini', true);
-        return comps;
+  // API fetch functions map
+  const apiFetchFunctions = {
+    'private_zillow': {
+      name: 'Private Zillow',
+      icon: '🏠',
+      quota: '250/month',
+      period: 'month',
+      fetch: fetchCompsFromPrivateZillow
+    },
+    'us_real_estate': {
+      name: 'US Real Estate',
+      icon: '🏘️',
+      quota: '300/month',
+      period: 'month',
+      fetch: fetchCompsFromUSRealEstate
+    },
+    'redfin': {
+      name: 'Redfin',
+      icon: '🏡',
+      quota: '111/month',
+      period: 'month',
+      fetch: fetchCompsFromRedfin
+    },
+    'gemini': {
+      name: 'Gemini AI',
+      icon: '🤖',
+      quota: '1500/day',
+      period: 'day',
+      fetch: function(data) {
+        const { GEMINI_API_KEY } = getApiKeys();
+        if (!GEMINI_API_KEY) {
+          throw new Error('Gemini API key not configured');
         }
+        return fetchCompsFromGemini(data, GEMINI_API_KEY);
+      }
+    }
+  };
+
+  // Try each API in order
+  for (var i = 0; i < apiCallOrder.length; i++) {
+    var apiName = apiCallOrder[i];
+    var apiConfig = apiFetchFunctions[apiName];
+
+    if (!apiConfig) continue;
+
+    // Check quota availability
+    if (!checkQuotaAvailable(apiName, apiConfig.period)) {
+      PlatformLogger.warn(`${apiConfig.icon} ${apiConfig.name} quota exceeded, skipping`);
+      continue;
+    }
+
+    try {
+      var priorityLabel = (i === 0 && primaryAPI !== 'auto') ? 'Primary' : `Priority ${i + 1}`;
+      PlatformLogger.info(`${apiConfig.icon} ${priorityLabel}: Trying ${apiConfig.name} for comps (${apiConfig.quota})...`);
+
+      comps = retryWithBackoff(function() { return apiConfig.fetch(data); });
+
+      if (comps && comps.length > 0) {
+        PlatformLogger.success(`✅ ${apiConfig.name} SUCCESS: ${comps.length} comps`);
+        trackAPIUsage(apiName, true);
+        return comps;
       }
     } catch (err) {
-      PlatformLogger.warn(`Gemini failed: ${err.message}`);
-      trackAPIUsage('gemini', false);
+      PlatformLogger.warn(`${apiConfig.name} comps failed: ${err.message}`);
+      trackAPIUsage(apiName, false);
     }
-  } else {
-    PlatformLogger.warn("Gemini quota exceeded");
   }
 
   // All APIs failed or exceeded quota

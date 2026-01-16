@@ -463,6 +463,12 @@ export const CacheManager = {
  */
 
 /**
+ * Session-only storage for primary API selection
+ * Resets to 'auto' on page refresh (no persistence)
+ */
+let currentPrimaryAPI: string = 'auto';
+
+/**
  * Quota Manager for Web App
  * Uses header-based usage tracking from RapidAPI
  */
@@ -554,11 +560,97 @@ export const QuotaManager = {
   },
 
   /**
-   * Select best API based on priority and available quota
+   * Set primary API for current session
+   * @param apiName - API name or 'auto'
+   * @returns Success status
+   */
+  setPrimaryAPI(apiName: string): boolean {
+    const validAPIs = ['auto', 'private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+
+    if (!validAPIs.includes(apiName)) {
+      PlatformLogger.error(`Invalid API name: ${apiName}`);
+      return false;
+    }
+
+    currentPrimaryAPI = apiName;
+    PlatformLogger.info(`Primary API set to: ${apiName}`);
+    return true;
+  },
+
+  /**
+   * Get current primary API selection
+   * @returns API name or 'auto'
+   */
+  getPrimaryAPI(): string {
+    return currentPrimaryAPI;
+  },
+
+  /**
+   * Check if API is blocked due to quota exceeded (90%+)
+   * @param apiName - API name to check
+   * @returns True if blocked
+   */
+  isAPIBlocked(apiName: string): boolean {
+    const usage = this.getUsage(apiName);
+    if (!usage) return false; // No data = not blocked
+    return usage.percentage >= 90; // Block at 90% threshold
+  },
+
+  /**
+   * Get list of available (non-blocked) APIs
+   * @returns Array of available API names
+   */
+  getAvailableAPIs(): string[] {
+    const allAPIs = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+    return allAPIs.filter(api => !this.isAPIBlocked(api));
+  },
+
+  /**
+   * Get ordered list of APIs to try based on primary selection
+   * Automatically filters out blocked APIs
+   * @param primaryAPI - Optional override for primary API
+   * @returns Ordered array of API names (excluding blocked ones)
+   */
+  getAPICallOrder(primaryAPI?: string): string[] {
+    const primary = primaryAPI || currentPrimaryAPI;
+    const defaultPriority = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+
+    let order: string[];
+
+    // If auto mode or invalid, use default priority
+    if (primary === 'auto' || !defaultPriority.includes(primary)) {
+      order = [...defaultPriority];
+    } else {
+      // Put selected API first, then others in default order
+      const others = defaultPriority.filter(api => api !== primary);
+      order = [primary, ...others];
+    }
+
+    // Filter out blocked APIs
+    return order.filter(api => !this.isAPIBlocked(api));
+  },
+
+  /**
+   * Get quota reset time information for an API
+   * @param apiName - API name
+   * @returns Reset information
+   */
+  getQuotaResetTime(apiName: string): { period: string; resets: string } {
+    const resetInfo: Record<string, { period: string; resets: string }> = {
+      'private_zillow': { period: 'monthly', resets: '1st of next month' },
+      'us_real_estate': { period: 'monthly', resets: '1st of next month' },
+      'redfin': { period: 'monthly', resets: '1st of next month' },
+      'gemini': { period: 'daily', resets: 'midnight tonight' }
+    };
+    return resetInfo[apiName] || { period: 'unknown', resets: 'unknown' };
+  },
+
+  /**
+   * Select best API based on primary selection and available quota
    * @returns API name
    */
   selectBestAPI(): string {
-    const priority = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+    const priority = this.getAPICallOrder();
 
     for (const apiName of priority) {
       if (this.hasQuotaRemaining(apiName)) {

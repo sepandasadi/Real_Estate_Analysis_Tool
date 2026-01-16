@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
 import { TabMode, getTabsByMode } from '../types/tabs';
+import { ApiUsageData } from '../services/api';
 
 interface SidebarProps {
   activeTab: string;
   mode: TabMode;
   onTabChange: (tabId: string) => void;
   onModeChange: (mode: TabMode) => void;
+  primaryAPI?: string;
+  onPrimaryAPIChange?: (apiName: string) => void;
+  apiUsage?: ApiUsageData | null;
 }
 
 interface TabCategory {
@@ -41,7 +45,10 @@ const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   mode,
   onTabChange,
-  onModeChange
+  onModeChange,
+  primaryAPI = 'auto',
+  onPrimaryAPIChange,
+  apiUsage
 }) => {
   const [isOpen, setIsOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -161,6 +168,53 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
         </div>
+
+        {/* API Source Selector - Compact */}
+        {onPrimaryAPIChange && (
+          <div className="p-3 border-b border-gray-200">
+            {isOpen ? (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-gray-600 flex items-center gap-1.5">
+                  <span>🎯</span>
+                  <span>API Source</span>
+                </label>
+                <select
+                  value={primaryAPI}
+                  onChange={(e) => onPrimaryAPIChange(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 bg-white"
+                >
+                  <option value="auto">✅ Auto</option>
+                  {/* Only show APIs that are not blocked (< 90% quota) */}
+                  {apiUsage?.privateZillow && (apiUsage.privateZillow.used / apiUsage.privateZillow.limit) < 0.9 && (
+                    <option value="private_zillow">🏠 Private Zillow</option>
+                  )}
+                  {apiUsage?.usRealEstate && (apiUsage.usRealEstate.used / apiUsage.usRealEstate.limit) < 0.9 && (
+                    <option value="us_real_estate">🏘️ US Real Estate</option>
+                  )}
+                  {apiUsage?.redfin && (apiUsage.redfin.used / apiUsage.redfin.limit) < 0.9 && (
+                    <option value="redfin">🏡 Redfin</option>
+                  )}
+                  {apiUsage?.gemini && (apiUsage.gemini.used / apiUsage.gemini.limit) < 0.9 && (
+                    <option value="gemini">🤖 Gemini AI</option>
+                  )}
+                  {/* Show all options if no usage data yet */}
+                  {!apiUsage && (
+                    <>
+                      <option value="private_zillow">🏠 Private Zillow</option>
+                      <option value="us_real_estate">🏘️ US Real Estate</option>
+                      <option value="redfin">🏡 Redfin</option>
+                      <option value="gemini">🤖 Gemini AI</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            ) : (
+              <div className="flex justify-center" title="API Source">
+                <span className="text-lg">🎯</span>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-6">

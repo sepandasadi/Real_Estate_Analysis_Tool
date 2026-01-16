@@ -86,6 +86,7 @@ Unlock full power with sophisticated features for complex deals.
 - **Actionable Insights** - Context-aware recommendations
 - **Auto-Populate** - State-based tax rates and insurance estimates
 - **24-Hour Caching** - 95% API cost reduction
+- **🆕 API Source Selection** - Choose primary API with automatic fallback
 
 ### 💰 Financial Analysis
 - Flip analysis with profit projections
@@ -132,6 +133,7 @@ Unlock full power with sophisticated features for complex deals.
 - **[Advanced Mode Guide](google-apps-script/docs/ADVANCED_MODE_GUIDE.md)** - Complete feature reference
 - **[Project Tracker Guide](google-apps-script/docs/PROJECT_TRACKER_GUIDE.md)** - Renovation management
 - **[Partnership Management Guide](google-apps-script/docs/PARTNER_MANAGEMENT_GUIDE.md)** - Multi-investor tracking
+- **🆕 [Modes Explained](web-app/docs/MODES_EXPLAINED.md)** - Understanding View Mode, Analysis Mode, and API Selection
 
 ### Technical Documentation
 - **[Dynamic Fields Guide](google-apps-script/docs/DYNAMIC_FIELDS_GUIDE.md)** - Field mapping system

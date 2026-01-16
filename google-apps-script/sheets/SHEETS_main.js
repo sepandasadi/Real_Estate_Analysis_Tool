@@ -73,6 +73,55 @@ function openSidebar() {
 }
 
 /**
+ * Set primary API for current session (called from sidebar)
+ * @param {string} apiName - API name or 'auto'
+ * @returns {boolean} Success status
+ */
+function setPrimaryAPI(apiName) {
+  return QuotaManager.setPrimaryAPI(apiName);
+}
+
+/**
+ * Get list of blocked API names (quota >90%)
+ * @returns {Array<string>} Array of blocked API names
+ */
+function getBlockedAPIs() {
+  const apis = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+  const blocked = [];
+
+  for (var i = 0; i < apis.length; i++) {
+    if (QuotaManager.isAPIBlocked(apis[i])) {
+      blocked.push(apis[i]);
+    }
+  }
+
+  return blocked;
+}
+
+/**
+ * Get API names with their display labels and blocked status
+ * @returns {Array<Object>} Array of API info objects
+ */
+function getAPIInfo() {
+  const apis = [
+    { id: 'private_zillow', name: 'Private Zillow', icon: '🏠' },
+    { id: 'us_real_estate', name: 'US Real Estate', icon: '🏘️' },
+    { id: 'redfin', name: 'Redfin', icon: '🏡' },
+    { id: 'gemini', name: 'Gemini AI', icon: '🤖' }
+  ];
+
+  return apis.map(function(api) {
+    return {
+      id: api.id,
+      name: api.name,
+      icon: api.icon,
+      blocked: QuotaManager.isAPIBlocked(api.id),
+      resetInfo: QuotaManager.getQuotaResetTime(api.id)
+    };
+  });
+}
+
+/**
  * Menu wrapper for running analysis
  */
 function menuRunAnalysis() {

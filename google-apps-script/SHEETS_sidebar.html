@@ -46,6 +46,18 @@
     </small>
   </div>
 
+  <!-- Primary API Source Selector - Compact -->
+  <div class="section" style="padding:10px 16px;">
+    <label style="font-size:12px;font-weight:600;">🎯 API Source</label>
+    <select id="primaryAPI" onchange="updatePrimaryAPI()" style="font-size:12px;padding:6px 8px;">
+      <option value="auto" selected>✅ Auto</option>
+      <option value="private_zillow">🏠 Private Zillow</option>
+      <option value="us_real_estate">🏘️ US Real Estate</option>
+      <option value="redfin">🏡 Redfin</option>
+      <option value="gemini">🤖 Gemini AI</option>
+    </select>
+  </div>
+
   <!-- Property -->
   <div class="section">
     <label>Property Address</label>
@@ -131,6 +143,60 @@
   <script>
     function showOverlay(show){document.getElementById("overlay").style.display=show?"flex":"none"}
 
+    function updatePrimaryAPI() {
+      const primaryAPI = document.getElementById("primaryAPI").value;
+
+      // Send to backend to update session cache
+      google.script.run
+        .withSuccessHandler(function(success) {
+          if (success) {
+            console.log("Primary API updated to: " + primaryAPI);
+          } else {
+            alert("❌ Failed to update primary API selection");
+          }
+        })
+        .withFailureHandler(function(error) {
+          console.error("Error updating primary API:", error);
+        })
+        .setPrimaryAPI(primaryAPI);
+    }
+
+    function updateAPIDropdown() {
+      // Fetch blocked APIs from backend
+      google.script.run
+        .withSuccessHandler(function(blockedAPIs) {
+          const dropdown = document.getElementById('primaryAPI');
+          const options = dropdown.querySelectorAll('option');
+
+          // Hide/disable blocked API options (>90% quota)
+          options.forEach(function(option) {
+            if (blockedAPIs.includes(option.value) && option.value !== 'auto') {
+              option.style.display = 'none';
+              option.disabled = true;
+            } else {
+              option.style.display = '';
+              option.disabled = false;
+            }
+          });
+
+          // Silently filter - no warning message shown
+          showBlockedMessage(blockedAPIs);
+        })
+        .withFailureHandler(function(error) {
+          console.error("Error fetching blocked APIs:", error);
+        })
+        .getBlockedAPIs();
+    }
+
+    function showBlockedMessage(blockedAPIs) {
+      // Remove existing message if any
+      var existing = document.getElementById('blockedApisMessage');
+      if (existing) {
+        existing.remove();
+      }
+      // Blocked message removed per user request - blocked APIs simply won't appear in dropdown
+    }
+
     function updateModeDescription() {
       const mode = document.getElementById("analysisMode").value;
       const previousMode = document.getElementById("analysisMode").getAttribute("data-previous-mode") || "STANDARD";
@@ -212,9 +278,10 @@
       // DEEP mode shows no extra fields (full automation)
     }
 
-    // Initialize mode description on load
+    // Initialize mode description and API dropdown on load
     window.onload = function() {
       updateModeDescription();
+      updateAPIDropdown(); // Filter out blocked APIs
     };
 
     function validateInputs() {

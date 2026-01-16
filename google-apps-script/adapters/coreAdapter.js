@@ -395,6 +395,135 @@ var QuotaManager = {
       PlatformLogger.error('Failed to get last success: ' + error);
       return { api: 'None', time: 'Never' };
     }
+  },
+
+  /**
+   * Set primary API for current session (stored in session cache)
+   * @param {string} apiName - API name or 'auto'
+   * @returns {boolean} Success status
+   */
+  setPrimaryAPI: function(apiName) {
+    var validAPIs = ['auto', 'private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+
+    if (validAPIs.indexOf(apiName) === -1) {
+      PlatformLogger.error('Invalid API name: ' + apiName);
+      return false;
+    }
+
+    try {
+      // Store in session cache (expires when sheet closes)
+      var cache = CacheService.getUserCache();
+      cache.put('primary_api', apiName, 21600); // 6 hours max
+      PlatformLogger.info('Primary API set to: ' + apiName);
+      return true;
+    } catch (error) {
+      PlatformLogger.error('Failed to set primary API: ' + error);
+      return false;
+    }
+  },
+
+  /**
+   * Get current primary API selection
+   * @returns {string} API name or 'auto'
+   */
+  getPrimaryAPI: function() {
+    try {
+      var cache = CacheService.getUserCache();
+      var primaryAPI = cache.get('primary_api');
+      return primaryAPI || 'auto';
+    } catch (error) {
+      PlatformLogger.error('Failed to get primary API: ' + error);
+      return 'auto';
+    }
+  },
+
+  /**
+   * Check if API is blocked due to quota exceeded (90%+)
+   * @param {string} apiName - API name to check
+   * @returns {boolean} True if blocked
+   */
+  isAPIBlocked: function(apiName) {
+    try {
+      var cache = CacheService.getUserCache();
+      var usageKey = apiName + '_usage';
+      var cached = cache.get(usageKey);
+
+      if (!cached) return false; // No data = not blocked
+
+      var usage = JSON.parse(cached);
+      return usage.percentage >= 90; // Block at 90% threshold
+    } catch (error) {
+      PlatformLogger.error('Failed to check if API blocked: ' + error);
+      return false; // Don't block on error
+    }
+  },
+
+  /**
+   * Get list of available (non-blocked) APIs
+   * @returns {Array<string>} Array of available API names
+   */
+  getAvailableAPIs: function() {
+    var allAPIs = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+    var available = [];
+
+    for (var i = 0; i < allAPIs.length; i++) {
+      if (!this.isAPIBlocked(allAPIs[i])) {
+        available.push(allAPIs[i]);
+      }
+    }
+
+    return available;
+  },
+
+  /**
+   * Get ordered list of APIs to try based on primary selection
+   * Automatically filters out blocked APIs
+   * @param {string} primaryAPI - Optional override for primary API
+   * @returns {Array<string>} Ordered array of API names (excluding blocked ones)
+   */
+  getAPICallOrder: function(primaryAPI) {
+    var primary = primaryAPI || this.getPrimaryAPI();
+    var defaultPriority = ['private_zillow', 'us_real_estate', 'redfin', 'gemini'];
+    var order = [];
+
+    // If auto mode or invalid, use default priority
+    if (primary === 'auto' || defaultPriority.indexOf(primary) === -1) {
+      order = defaultPriority.slice(); // Copy
+    } else {
+      // Put selected API first, then others in default order
+      var others = [];
+      for (var i = 0; i < defaultPriority.length; i++) {
+        if (defaultPriority[i] !== primary) {
+          others.push(defaultPriority[i]);
+        }
+      }
+      order = [primary].concat(others);
+    }
+
+    // Filter out blocked APIs
+    var available = [];
+    for (var i = 0; i < order.length; i++) {
+      if (!this.isAPIBlocked(order[i])) {
+        available.push(order[i]);
+      }
+    }
+
+    return available;
+  },
+
+  /**
+   * Get quota reset time information for an API
+   * @param {string} apiName - API name
+   * @returns {Object} Reset information { period, resets }
+   */
+  getQuotaResetTime: function(apiName) {
+    var resetInfo = {
+      'private_zillow': { period: 'monthly', resets: '1st of next month' },
+      'us_real_estate': { period: 'monthly', resets: '1st of next month' },
+      'redfin': { period: 'monthly', resets: '1st of next month' },
+      'gemini': { period: 'daily', resets: 'midnight tonight' }
+    };
+    return resetInfo[apiName] || { period: 'unknown', resets: 'unknown' };
   }
 };
 

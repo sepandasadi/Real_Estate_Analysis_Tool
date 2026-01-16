@@ -16,6 +16,7 @@ import PropertyHistory from './components/PropertyHistory';
 import Sidebar from './components/Sidebar';
 import MenuBar from './components/MenuBar';
 import InstallPrompt from './components/InstallPrompt';
+import { QuotaManager } from './adapters/coreAdapter';
 
 // Lazy load tab components for better performance
 const InputsSummaryTab = lazy(() => import('./components/tabs/InputsSummaryTab'));
@@ -58,10 +59,29 @@ function App() {
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
   const [apiUsageExpanded, setApiUsageExpanded] = useState<boolean>(true);
   const [refreshingUsage, setRefreshingUsage] = useState<boolean>(false);
+  const [primaryAPI, setPrimaryAPI] = useState<string>('auto');
 
   // Check if real API is configured
   const API_URL = import.meta.env.VITE_API_URL;
   const isRealApiConfigured = API_URL && API_URL !== '' && !API_URL.includes('YOUR_SCRIPT_ID');
+
+  // Handle primary API change
+  const handlePrimaryAPIChange = (apiName: string) => {
+    setPrimaryAPI(apiName);
+    QuotaManager.setPrimaryAPI(apiName);
+    console.log(`Primary API changed to: ${apiName}`);
+  };
+
+  // Auto-revert to 'auto' if selected API becomes blocked
+  useEffect(() => {
+    if (primaryAPI !== 'auto' && apiUsage) {
+      const isBlocked = QuotaManager.isAPIBlocked(primaryAPI);
+      if (isBlocked) {
+        console.warn(`API ${primaryAPI} is now blocked (>90% quota). Reverting to Auto mode.`);
+        handlePrimaryAPIChange('auto');
+      }
+    }
+  }, [apiUsage, primaryAPI]);
 
   // Initialize API configuration on mount
   useEffect(() => {
@@ -413,6 +433,9 @@ function App() {
             mode={mode}
             onTabChange={handleTabChange}
             onModeChange={handleModeChange}
+            primaryAPI={primaryAPI}
+            onPrimaryAPIChange={handlePrimaryAPIChange}
+            apiUsage={apiUsage}
           />
         )}
 
@@ -606,6 +629,47 @@ function App() {
             </div>
           </div>
         )}
+
+          {/* Floating API Selector Widget - Fixed position on left, hidden on mobile */}
+          {viewMode === 'form' && (
+            <div className="hidden lg:block fixed left-6 top-32 z-30 animate-fadeIn">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-52 hover:shadow-xl transition-shadow duration-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-base">🎯</span>
+                  <span className="text-xs font-semibold text-gray-700">API Source</span>
+                </div>
+                <select
+                  value={primaryAPI}
+                  onChange={(e) => handlePrimaryAPIChange(e.target.value)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-transparent bg-white transition-all"
+                >
+                  <option value="auto">✅ Auto</option>
+                  {/* Only show APIs that are not blocked (< 90% quota) */}
+                  {apiUsage?.privateZillow && (apiUsage.privateZillow.used / apiUsage.privateZillow.limit) < 0.9 && (
+                    <option value="private_zillow">🏠 Private Zillow</option>
+                  )}
+                  {apiUsage?.usRealEstate && (apiUsage.usRealEstate.used / apiUsage.usRealEstate.limit) < 0.9 && (
+                    <option value="us_real_estate">🏘️ US Real Estate</option>
+                  )}
+                  {apiUsage?.redfin && (apiUsage.redfin.used / apiUsage.redfin.limit) < 0.9 && (
+                    <option value="redfin">🏡 Redfin</option>
+                  )}
+                  {apiUsage?.gemini && (apiUsage.gemini.used / apiUsage.gemini.limit) < 0.9 && (
+                    <option value="gemini">🤖 Gemini AI</option>
+                  )}
+                  {/* Show all options if no usage data yet */}
+                  {!apiUsage && (
+                    <>
+                      <option value="private_zillow">🏠 Private Zillow</option>
+                      <option value="us_real_estate">🏘️ US Real Estate</option>
+                      <option value="redfin">🏡 Redfin</option>
+                      <option value="gemini">🤖 Gemini AI</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+          )}
 
           {/* Main Content */}
           <div className="max-w-7xl mx-auto">
